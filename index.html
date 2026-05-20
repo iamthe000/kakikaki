@@ -358,21 +358,17 @@
                 min-height: 54vh;
                 padding: 12px;
                 overflow-x: hidden;
-                overflow-y: auto;
             }
 
             .pages {
                 width: 100%;
-                display: flex;
-                flex-direction: column;
                 gap: 14px;
                 align-items: center;
                 direction: ltr;
             }
 
             .page {
-                flex: 0 0 auto;
-                width: min(var(--page-width), 100%);
+                width: var(--page-width);
                 height: var(--page-height);
                 max-width: 100%;
             }
