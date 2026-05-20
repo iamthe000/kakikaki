@@ -940,11 +940,19 @@
         }
 
         function downloadText() {
-            const title = (titleInput.value.trim() || 'novel').replace(/[\\/:*?"<>|]/g, '_');
-            const blob = new Blob([editor.value], { type: 'text/plain;charset=utf-8' });
+            const titleStr = titleInput.value.trim();
+            const authorStr = authorInput.value.trim();
+            let content = '';
+            if (titleStr) content += `タイトル：${titleStr}\n`;
+            if (authorStr) content += `著者：${authorStr}\n`;
+            if (titleStr || authorStr) content += '\n';
+            content += editor.value;
+
+            const filename = (titleStr || 'novel').replace(/[\\/:*?"<>|]/g, '_');
+            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
             const anchor = document.createElement('a');
             anchor.href = URL.createObjectURL(blob);
-            anchor.download = `${title}.txt`;
+            anchor.download = `${filename}.txt`;
             anchor.click();
             URL.revokeObjectURL(anchor.href);
         }
@@ -960,8 +968,46 @@
                 return;
             }
 
-            const text = await file.text();
-            editor.value = normalizeText(text);
+            const text = normalizeText(await file.text());
+            const lines = text.split('\n');
+            let bodyStartIndex = 0;
+            let foundTitle = '';
+            let foundAuthor = '';
+
+            for (let i = 0; i < Math.min(lines.length, 10); i++) {
+                const line = lines[i].trim();
+                const titleMatch = line.match(/^(?:タイトル|作品名)[\:：]\s*(.*)$/);
+                const authorMatch = line.match(/^(?:著者|作者)[\:：]\s*(.*)$/);
+
+                if (titleMatch) {
+                    foundTitle = titleMatch[1];
+                    bodyStartIndex = i + 1;
+                } else if (authorMatch) {
+                    foundAuthor = authorMatch[1];
+                    bodyStartIndex = i + 1;
+                } else if (line === '' && bodyStartIndex > 0) {
+                    bodyStartIndex = i + 1;
+                    break;
+                } else if (line !== '') {
+                    if (bodyStartIndex === 0) {
+                        // Not metadata yet
+                    } else {
+                        break;
+                    }
+                }
+            }
+
+            if (foundTitle || foundAuthor) {
+                if (foundTitle) titleInput.value = foundTitle;
+                if (foundAuthor) authorInput.value = foundAuthor;
+                while (bodyStartIndex < lines.length && lines[bodyStartIndex].trim() === '') {
+                    bodyStartIndex++;
+                }
+                editor.value = lines.slice(bodyStartIndex).join('\n');
+            } else {
+                editor.value = text;
+            }
+
             saveState();
             queueRender();
         });
