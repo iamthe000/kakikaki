@@ -18,7 +18,7 @@
             --page-height: 148mm;
             --page-pad-y: 13mm;
             --page-pad-x: 11mm;
-            --body-font-size: 10pt;
+            --body-font-size: 9px;
             --body-line-height: 1.75;
         }
 
@@ -39,6 +39,7 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            -webkit-text-size-adjust: 100%;
         }
 
         .toolbar {
@@ -76,16 +77,17 @@
         }
 
         button {
-            min-height: 34px;
+            min-height: 44px;
             border: 1px solid transparent;
             border-radius: 6px;
-            padding: 7px 12px;
+            padding: 10px 14px;
             background: var(--accent-color);
             color: #ffffff;
             cursor: pointer;
             font-size: 0.9rem;
             font-weight: 700;
             line-height: 1;
+            touch-action: manipulation;
         }
 
         button:hover {
@@ -131,20 +133,24 @@
             flex: 1 1 240px;
             border: 1px solid var(--border-color);
             border-radius: 6px;
-            padding: 8px 10px;
+            min-height: 44px;
+            padding: 10px 12px;
             color: var(--text-color);
             font: inherit;
             outline: none;
+            touch-action: manipulation;
         }
 
         .author-input {
             flex: 1 1 180px;
             border: 1px solid var(--border-color);
             border-radius: 6px;
-            padding: 8px 10px;
+            min-height: 44px;
+            padding: 10px 12px;
             color: var(--text-color);
             font: inherit;
             outline: none;
+            touch-action: manipulation;
         }
 
         .title-input:focus,
@@ -158,14 +164,15 @@
             flex: 1;
             width: 100%;
             min-height: 0;
-            padding: 20px;
+            padding: 16px;
             border: 0;
             resize: none;
             color: var(--text-color);
             font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
-            font-size: 1rem;
+            font-size: 9px;
             line-height: 1.75;
             outline: none;
+            touch-action: manipulation;
         }
 
         .preview-pane {
@@ -292,6 +299,11 @@
         }
 
         @media (max-width: 920px) {
+            :root {
+                --page-width: calc(100vw - 24px);
+                --page-height: calc((100vw - 24px) * 1.4095238);
+            }
+
             body {
                 height: auto;
                 min-height: 100%;
@@ -299,8 +311,22 @@
             }
 
             .toolbar {
-                align-items: flex-start;
                 flex-direction: column;
+                align-items: stretch;
+                position: sticky;
+                top: 0;
+            }
+
+            .brand {
+                white-space: normal;
+            }
+
+            .toolbar-controls {
+                justify-content: stretch;
+            }
+
+            .toolbar-controls > * {
+                flex: 1 1 140px;
             }
 
             .container {
@@ -308,13 +334,47 @@
             }
 
             .editor-pane {
-                min-height: 48vh;
+                min-height: 46vh;
                 border-right: 0;
                 border-bottom: 1px solid var(--border-color);
             }
 
+            .editor-meta {
+                gap: 8px;
+            }
+
+            .title-input,
+            .author-input {
+                flex-basis: 100%;
+                width: 100%;
+            }
+
+            textarea {
+                min-height: 38vh;
+                padding: 14px;
+            }
+
             .preview-pane {
-                min-height: 70vh;
+                min-height: 54vh;
+                padding: 12px;
+                overflow-x: hidden;
+            }
+
+            .pages {
+                width: 100%;
+                gap: 14px;
+                align-items: center;
+                direction: ltr;
+            }
+
+            .page {
+                width: var(--page-width);
+                height: var(--page-height);
+                max-width: 100%;
+            }
+
+            .page::after {
+                bottom: 2.8mm;
             }
         }
 
