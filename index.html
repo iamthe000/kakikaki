@@ -515,6 +515,7 @@
                 console.warn('保存データを読めませんでした。', error);
             }
             editor.value = DEFAULT_TEXT;
+            updateTabTitle();
         }
 
         function saveState() {
@@ -524,6 +525,12 @@
                 text: editor.value
             };
             localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+        }
+
+        function updateTabTitle() {
+            const title = titleInput.value.trim() || '作品タイトル';
+            const author = authorInput.value.trim() || '著者';
+            document.title = `　　${title}/${author} - 文庫小説エディタ　　`;
         }
 
         function normalizeText(text) {
@@ -1009,6 +1016,7 @@
             }
 
             saveState();
+            updateTabTitle();
             queueRender();
         });
 
@@ -1018,8 +1026,7 @@
                 await document.fonts.ready;
             }
             renderPreview();
-            const title = titleInput.value.trim();
-            document.title = title ? `${title} - 文庫小説エディタ` : '文庫小説エディタ';
+            updateTabTitle();
             requestAnimationFrame(() => window.print());
         }
 
@@ -1028,8 +1035,14 @@
             queueRender();
         });
 
-        titleInput.addEventListener('input', saveState);
-        authorInput.addEventListener('input', saveState);
+        titleInput.addEventListener('input', () => {
+            saveState();
+            updateTabTitle();
+        });
+        authorInput.addEventListener('input', () => {
+            saveState();
+            updateTabTitle();
+        });
         loadTextButton.addEventListener('click', loadTextFile);
         pageBreakButton.addEventListener('click', () => insertAtCursor('［改ページ］'));
         downloadTextButton.addEventListener('click', downloadText);
