@@ -282,6 +282,67 @@ if ('serviceWorker' in navigator) {
             letter-spacing: 0.12em;
         }
 
+        /* Cover customization (Vertical writing mode: flex-direction column means main-axis is horizontal, cross-axis is vertical) */
+        /* Vertical positioning (Cross-axis) */
+        .cover-layout.pos-top { align-items: flex-start; }
+        .cover-layout.pos-center { align-items: center; }
+        .cover-layout.pos-bottom { align-items: flex-end; }
+        .cover-layout.pos-split { align-items: stretch; justify-content: center; }
+        .cover-layout.pos-split .cover-title { align-self: flex-start; }
+        .cover-layout.pos-split .cover-author { align-self: flex-end; }
+
+        /* Horizontal positioning (Main-axis) */
+        .cover-layout.align-right { justify-content: flex-start; }
+        .cover-layout.align-center { justify-content: center; }
+        .cover-layout.align-left { justify-content: flex-end; }
+        .cover-layout.align-split { justify-content: space-between; }
+
+        .cover-title.ts-s { font-size: 1.2em; }
+        .cover-title.ts-m { font-size: 1.6em; }
+        .cover-title.ts-l { font-size: 2.0em; }
+        .cover-title.ts-xl { font-size: 2.4em; }
+
+        .cover-author.as-s { font-size: 0.8em; }
+        .cover-author.as-m { font-size: 1.05em; }
+        .cover-author.as-l { font-size: 1.3em; }
+
+        .settings-panel {
+            flex: 1 1 100%;
+            display: none;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 12px;
+            background: #f8fafc;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            margin-top: 4px;
+            font-size: 0.85rem;
+        }
+
+        .settings-panel.active {
+            display: flex;
+        }
+
+        .settings-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .settings-group label {
+            font-weight: 700;
+            color: var(--muted-color);
+        }
+
+        .settings-group select,
+        .settings-group input {
+            padding: 4px 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background: #fff;
+            font: inherit;
+        }
+
         .page-content ruby {
             ruby-align: center;
         }
@@ -473,6 +534,48 @@ if ('serviceWorker' in navigator) {
             <div class="editor-meta">
                 <input class="title-input" id="titleInput" type="text" placeholder="作品タイトル" autocomplete="off">
                 <input class="author-input" id="authorInput" type="text" placeholder="作者名" autocomplete="off">
+                <button class="secondary" type="button" id="toggleSettingsButton" title="扉のレイアウトを設定する" style="min-height: 44px; padding: 0 12px;">扉設定</button>
+                <div class="settings-panel" id="settingsPanel">
+                    <div class="settings-group">
+                        <label>上下</label>
+                        <select id="coverPos">
+                            <option value="pos-center">中央</option>
+                            <option value="pos-top">上寄せ</option>
+                            <option value="pos-bottom">下寄せ</option>
+                            <option value="pos-split">上下分散</option>
+                        </select>
+                    </div>
+                    <div class="settings-group">
+                        <label>左右</label>
+                        <select id="coverAlign">
+                            <option value="align-center">中央</option>
+                            <option value="align-right">右寄せ</option>
+                            <option value="align-left">左寄せ</option>
+                            <option value="align-split">左右分散</option>
+                        </select>
+                    </div>
+                    <div class="settings-group">
+                        <label>題サイズ</label>
+                        <select id="titleSize">
+                            <option value="ts-s">小</option>
+                            <option value="ts-m" selected>中</option>
+                            <option value="ts-l">大</option>
+                            <option value="ts-xl">特大</option>
+                        </select>
+                    </div>
+                    <div class="settings-group">
+                        <label>名サイズ</label>
+                        <select id="authorSize">
+                            <option value="as-s">小</option>
+                            <option value="as-m" selected>中</option>
+                            <option value="as-l">大</option>
+                        </select>
+                    </div>
+                    <div class="settings-group">
+                        <label>名ラベル</label>
+                        <input type="text" id="authorPrefix" placeholder="著者" style="width: 60px;">
+                    </div>
+                </div>
             </div>
             <textarea id="editor" spellcheck="false" placeholder="ここに本文を書く&#10;&#10;ルビ: |漢字《かんじ》 / |漢字&lt;&lt;かんじ&gt;&gt;&#10;太字: **文字**, イタリック: *文字*&#10;手動改ページ: ［改ページ］"></textarea>
         </section>
@@ -508,6 +611,14 @@ if ('serviceWorker' in navigator) {
         const printButton = document.getElementById('printButton');
         const txtFileInput = document.getElementById('txtFileInput');
 
+        const toggleSettingsButton = document.getElementById('toggleSettingsButton');
+        const settingsPanel = document.getElementById('settingsPanel');
+        const coverPosSelect = document.getElementById('coverPos');
+        const coverAlignSelect = document.getElementById('coverAlign');
+        const titleSizeSelect = document.getElementById('titleSize');
+        const authorSizeSelect = document.getElementById('authorSize');
+        const authorPrefixInput = document.getElementById('authorPrefix');
+
         let renderTimer = 0;
 
         function loadState() {
@@ -517,6 +628,14 @@ if ('serviceWorker' in navigator) {
                     titleInput.value = saved.title || '';
                     authorInput.value = saved.author || '';
                     editor.value = saved.text;
+
+                    if (saved.coverSettings) {
+                        coverPosSelect.value = saved.coverSettings.pos || 'pos-center';
+                        coverAlignSelect.value = saved.coverSettings.align || 'align-center';
+                        titleSizeSelect.value = saved.coverSettings.titleSize || 'ts-m';
+                        authorSizeSelect.value = saved.coverSettings.authorSize || 'as-m';
+                        authorPrefixInput.value = saved.coverSettings.authorPrefix || '';
+                    }
                     return;
                 }
             } catch (error) {
@@ -530,7 +649,14 @@ if ('serviceWorker' in navigator) {
             const payload = {
                 title: titleInput.value,
                 author: authorInput.value,
-                text: editor.value
+                text: editor.value,
+                coverSettings: {
+                    pos: coverPosSelect.value,
+                    align: coverAlignSelect.value,
+                    titleSize: titleSizeSelect.value,
+                    authorSize: authorSizeSelect.value,
+                    authorPrefix: authorPrefixInput.value
+                }
             };
             localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
         }
@@ -576,15 +702,16 @@ if ('serviceWorker' in navigator) {
             content.className = 'page-content';
 
             const cover = document.createElement('div');
-            cover.className = 'cover-layout';
+            cover.className = `cover-layout ${coverPosSelect.value} ${coverAlignSelect.value}`;
 
             const title = document.createElement('div');
-            title.className = 'cover-title';
+            title.className = `cover-title ${titleSizeSelect.value}`;
             title.textContent = titleInput.value.trim();
 
             const author = document.createElement('div');
-            author.className = 'cover-author';
-            author.textContent = authorInput.value.trim() ? `著者　${authorInput.value.trim()}` : '';
+            author.className = `cover-author ${authorSizeSelect.value}`;
+            const prefix = authorPrefixInput.value.trim() || '著者';
+            author.textContent = authorInput.value.trim() ? `${prefix}　${authorInput.value.trim()}` : '';
 
             if (title.textContent === '' && author.textContent === '') {
                 return null;
@@ -1046,16 +1173,34 @@ if ('serviceWorker' in navigator) {
         titleInput.addEventListener('input', () => {
             saveState();
             updateTabTitle();
+            queueRender();
         });
         authorInput.addEventListener('input', () => {
             saveState();
             updateTabTitle();
+            queueRender();
         });
         loadTextButton.addEventListener('click', loadTextFile);
         pageBreakButton.addEventListener('click', () => insertAtCursor('［改ページ］'));
         downloadTextButton.addEventListener('click', downloadText);
         printButton.addEventListener('click', printNovel);
         window.addEventListener('beforeprint', renderPreview);
+
+        toggleSettingsButton.addEventListener('click', () => {
+            settingsPanel.classList.toggle('active');
+        });
+
+        [coverPosSelect, coverAlignSelect, titleSizeSelect, authorSizeSelect].forEach(el => {
+            el.addEventListener('change', () => {
+                saveState();
+                queueRender();
+            });
+        });
+
+        authorPrefixInput.addEventListener('input', () => {
+            saveState();
+            queueRender();
+        });
 
         loadState();
         if (document.fonts && document.fonts.ready) {
