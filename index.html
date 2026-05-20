@@ -288,6 +288,10 @@
             font-weight: 700;
         }
 
+        .italic {
+            font-style: italic;
+        }
+
         .pagination-workbench {
             position: fixed;
             left: -10000px;
@@ -462,7 +466,7 @@
                 <input class="title-input" id="titleInput" type="text" placeholder="作品タイトル" autocomplete="off">
                 <input class="author-input" id="authorInput" type="text" placeholder="作者名" autocomplete="off">
             </div>
-            <textarea id="editor" spellcheck="false" placeholder="ここに本文を書く&#10;&#10;ルビ: |漢字《かんじ》 / |漢字&lt;&lt;かんじ&gt;&gt;&#10;太字: **文字**&#10;手動改ページ: ［改ページ］"></textarea>
+            <textarea id="editor" spellcheck="false" placeholder="ここに本文を書く&#10;&#10;ルビ: |漢字《かんじ》 / |漢字&lt;&lt;かんじ&gt;&gt;&#10;太字: **文字**, イタリック: *文字*&#10;手動改ページ: ［改ページ］"></textarea>
         </section>
 
         <input id="txtFileInput" type="file" accept=".txt,text/plain" hidden>
@@ -480,7 +484,7 @@
             '',
             '　このエディタはA6文庫サイズで縦書きに組み、ページごとに左右の余白を持たせます。',
             '',
-            '　ルビは|漢字《かんじ》や|漢字<<かんじ>>、強調は**太字**で書けます。',
+            '　ルビは|漢字《かんじ》や|漢字<<かんじ>>、強調は**太字**や*イタリック*で書けます。',
             '［改ページ］',
             '　改ページを入れると、次のA6ページに続きます。'
         ].join('\n');
@@ -532,7 +536,8 @@
                 .filter(line => !PAGE_BREAK_PATTERN.test(line))
                 .join('')
                 .replace(/\|([^《<>]+)(?:《([^》]+)》|<<([^>]+)>>)/g, '$1')
-                .replace(/\*\*([^*]+)\*\*/g, '$1')
+                .replace(/\*\*(.*?)\*\*/g, '$1')
+                .replace(/\*(.*?)\*/g, '$1')
                 .replace(/\s/g, '').length;
         }
 
@@ -601,6 +606,13 @@
             if (token.type === 'bold') {
                 const span = document.createElement('span');
                 span.className = 'bold';
+                appendInlineTokens(span, parseInline(token.text));
+                return span;
+            }
+
+            if (token.type === 'italic') {
+                const span = document.createElement('span');
+                span.className = 'italic';
                 appendInlineTokens(span, parseInline(token.text));
                 return span;
             }
@@ -724,6 +736,16 @@
                         flushText();
                         tokens.push({ type: 'bold', text: chars.slice(i + 2, close).join('') });
                         i = close + 1;
+                        continue;
+                    }
+                }
+
+                if (chars[i] === '*') {
+                    const close = chars.indexOf('*', i + 1);
+                    if (close > i + 1) {
+                        flushText();
+                        tokens.push({ type: 'italic', text: chars.slice(i + 1, close).join('') });
+                        i = close;
                         continue;
                     }
                 }
