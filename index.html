@@ -598,7 +598,7 @@
                 return ruby;
             }
 
-            if (token.bold) {
+            if (token.type === 'bold') {
                 const span = document.createElement('span');
                 span.className = 'bold';
                 appendInlineTokens(span, parseInline(token.text));
