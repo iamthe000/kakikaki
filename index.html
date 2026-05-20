@@ -357,20 +357,23 @@
             .preview-pane {
                 min-height: 54vh;
                 padding: 12px;
-                overflow-x: hidden;
+                overflow-x: auto;
+                scroll-snap-type: x mandatory;
+                direction: rtl;
             }
 
             .pages {
-                width: 100%;
+                width: max-content;
                 gap: 14px;
                 align-items: center;
-                direction: ltr;
+                direction: rtl;
             }
 
             .page {
                 width: var(--page-width);
                 height: var(--page-height);
-                max-width: 100%;
+                flex-shrink: 0;
+                scroll-snap-align: center;
             }
 
             .page::after {
