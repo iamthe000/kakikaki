@@ -459,7 +459,7 @@
                 <input class="title-input" id="titleInput" type="text" placeholder="作品タイトル" autocomplete="off">
                 <input class="author-input" id="authorInput" type="text" placeholder="作者名" autocomplete="off">
             </div>
-            <textarea id="editor" spellcheck="false" placeholder="ここに本文を書く&#10;&#10;ルビ: |漢字《かんじ》&#10;太字: **文字**&#10;手動改ページ: ［改ページ］"></textarea>
+            <textarea id="editor" spellcheck="false" placeholder="ここに本文を書く&#10;&#10;ルビ: |漢字《かんじ》 / |漢字&lt;&lt;かんじ&gt;&gt;&#10;太字: **文字**&#10;手動改ページ: ［改ページ］"></textarea>
         </section>
 
         <input id="txtFileInput" type="file" accept=".txt,text/plain" hidden>
@@ -477,7 +477,7 @@
             '',
             '　このエディタはA6文庫サイズで縦書きに組み、ページごとに左右の余白を持たせます。',
             '',
-            '　ルビは|漢字《かんじ》、強調は**太字**で書けます。',
+            '　ルビは|漢字《かんじ》や|漢字<<かんじ>>、強調は**太字**で書けます。',
             '［改ページ］',
             '　改ページを入れると、次のA6ページに続きます。'
         ].join('\n');
@@ -528,7 +528,7 @@
                 .split('\n')
                 .filter(line => !PAGE_BREAK_PATTERN.test(line))
                 .join('')
-                .replace(/\|([^《]+)《([^》]+)》/g, '$1')
+                .replace(/\|([^《<>]+)(?:《([^》]+)》|<<([^>]+)>>)/g, '$1')
                 .replace(/\*\*([^*]+)\*\*/g, '$1')
                 .replace(/\s/g, '').length;
         }
@@ -588,9 +588,9 @@
 
             if (token.type === 'ruby') {
                 const ruby = document.createElement('ruby');
-                ruby.textContent = token.base;
+                appendInlineTokens(ruby, parseInline(token.base));
                 const rt = document.createElement('rt');
-                rt.textContent = token.reading;
+                appendInlineTokens(rt, parseInline(token.reading));
                 ruby.appendChild(rt);
                 return ruby;
             }
@@ -598,11 +598,19 @@
             if (token.bold) {
                 const span = document.createElement('span');
                 span.className = 'bold';
-                span.textContent = token.text;
+                appendInlineTokens(span, parseInline(token.text));
                 return span;
             }
 
             return document.createTextNode(token.text);
+        }
+
+        function appendInlineTokens(parent, tokens) {
+            const fragment = document.createDocumentFragment();
+            for (const token of tokens) {
+                fragment.appendChild(createTokenNode(token));
+            }
+            parent.appendChild(fragment);
         }
 
         function appendTokenRange(parent, tokens, start, count) {
@@ -642,41 +650,85 @@
         function parseInline(text) {
             const tokens = [];
             const chars = Array.from(text);
+            let buffer = '';
+
+            function flushText() {
+                if (buffer !== '') {
+                    tokens.push({ type: 'text', text: buffer });
+                    buffer = '';
+                }
+            }
 
             for (let i = 0; i < chars.length; i += 1) {
                 if (chars[i] === '\n') {
+                    flushText();
                     tokens.push({ type: 'br' });
                     continue;
                 }
 
                 if (chars[i] === '|' && chars[i + 1]) {
-                    const open = chars.indexOf('《', i + 1);
-                    const close = open === -1 ? -1 : chars.indexOf('》', open + 1);
-                    if (open > i + 1 && close > open + 1) {
-                        tokens.push({
-                            type: 'ruby',
-                            base: chars.slice(i + 1, open).join(''),
-                            reading: chars.slice(open + 1, close).join('')
-                        });
-                        i = close;
-                        continue;
+                    const angleOpen = chars.indexOf('《', i + 1);
+                    let chevronOpen = -1;
+                    for (let j = i + 1; j < chars.length - 1; j += 1) {
+                        if (chars[j] === '<' && chars[j + 1] === '<') {
+                            chevronOpen = j;
+                            break;
+                        }
+                    }
+
+                    let openIndex = -1;
+                    let openPattern = null;
+                    if (angleOpen !== -1 && (chevronOpen === -1 || angleOpen < chevronOpen)) {
+                        openIndex = angleOpen;
+                        openPattern = '《';
+                    } else if (chevronOpen !== -1) {
+                        openIndex = chevronOpen;
+                        openPattern = '<<';
+                    }
+
+                    if (openPattern && openIndex > i + 1) {
+                        flushText();
+                        const base = chars.slice(i + 1, openIndex).join('');
+                        const readingStart = openIndex + (openPattern === '<<' ? 2 : 1);
+                        let close = -1;
+
+                        if (openPattern === '<<') {
+                            for (let j = readingStart; j < chars.length - 1; j += 1) {
+                                if (chars[j] === '>' && chars[j + 1] === '>') {
+                                    close = j;
+                                    break;
+                                }
+                            }
+                        } else {
+                            close = chars.indexOf('》', readingStart);
+                        }
+
+                        if (close > readingStart) {
+                            tokens.push({
+                                type: 'ruby',
+                                base,
+                                reading: chars.slice(readingStart, close).join('')
+                            });
+                            i = close + (openPattern === '<<' ? 1 : 0);
+                            continue;
+                        }
                     }
                 }
 
                 if (chars[i] === '*' && chars[i + 1] === '*') {
                     const close = chars.findIndex((char, index) => index > i + 1 && char === '*' && chars[index + 1] === '*');
                     if (close > i + 1) {
-                        for (const char of chars.slice(i + 2, close)) {
-                            tokens.push({ type: 'text', text: char, bold: true });
-                        }
+                        flushText();
+                        tokens.push({ type: 'bold', text: chars.slice(i + 2, close).join('') });
                         i = close + 1;
                         continue;
                     }
                 }
 
-                tokens.push({ type: 'text', text: chars[i] });
+                buffer += chars[i];
             }
 
+            flushText();
             return tokens;
         }
 
