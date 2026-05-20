@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A6縦書き小説エディタ</title>
+    <style>
+        :root {
+            --bg-color: #f4f4f5;
+            --paper-color: #fdfdfc;
+            --text-color: #333333;
+            --border-color: #d1d5db;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* ツールバー（印刷時は非表示） */
+        .toolbar {
+            background-color: #ffffff;
+            padding: 10px 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            z-index: 10;
+        }
+
+        .toolbar h1 {
+            margin: 0;
+            font-size: 1.2rem;
+        }
+
+        .toolbar-controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .help-text {
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        button {
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #1d4ed8;
+        }
+
+        /* メインレイアウト */
+        .container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* 左側：エディタ */
+        .editor-pane {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border-color);
+            background: white;
+        }
+
+        textarea {
+            flex: 1;
+            width: 100%;
+            padding: 20px;
+            border: none;
+            resize: none;
+            font-size: 1rem;
+            font-family: inherit;
+            line-height: 1.6;
+            outline: none;
+            box-sizing: border-box;
+        }
+
+        /* 右側：プレビュー（A6サイズ縦書き） */
+        .preview-pane {
+            flex: 1;
+            background-color: var(--bg-color);
+            overflow-x: auto;
+            overflow-y: hidden;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            /* 縦書きは右から左へスクロールするため、右寄せ開始 */
+            flex-direction: row-reverse; 
+        }
+
+        .a6-paper {
+            /* A6サイズの比率と寸法 (画面上での見栄え用) */
+            height: 148mm;
+            min-width: 105mm;
+            background-color: var(--paper-color);
+            box-shadow: 2px 4px 12px rgba(0,0,0,0.15);
+            padding: 12mm 10mm;
+            box-sizing: border-box;
+            
+            /* 縦書き設定 */
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            font-family: "Yu Mincho", "Noto Serif JP", "Hiragino Mincho ProN", serif;
+            font-size: 11pt;
+            line-height: 1.8;
+            letter-spacing: 0.05em;
+            
+            /* テキストが溢れたら横に広がる（複数ページ化） */
+            column-width: 126mm; /* paddingを引いた高さ */
+            column-gap: 20mm;
+        }
+
+        .a6-paper p {
+            margin: 0;
+            /* 字下げは自動で行わず、必要なら筆者が本文に「　」を入れる */
+            text-indent: 0;
+        }
+
+        /* 空行の維持 */
+        .a6-paper p.empty-line {
+            min-width: 1em;
+            text-indent: 0;
+        }
+
+        .bold {
+            font-weight: bold;
+        }
+
+        /* 印刷（PDF出力）用の設定 */
+        @media print {
+            body {
+                background: none;
+                height: auto;
+            }
+            .toolbar, .editor-pane {
+                display: none !important;
+            }
+            .preview-pane {
+                padding: 0;
+                display: block;
+                overflow: visible;
+            }
+            .a6-paper {
+                box-shadow: none;
+                height: 100%;
+                min-width: 100%;
+                padding: 0;
+                column-width: auto;
+                column-gap: 0;
+            }
+            @page {
+                /* 文庫本サイズ（一般的にA6: 105mm x 148mm） */
+                size: 105mm 148mm;
+                margin: 12mm;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="toolbar">
+        <h1>A6縦書き小説エディタ</h1>
+        <div class="toolbar-controls">
+            <span class="help-text">
+                ルビ: <code>|漢字《かんじ》</code> ｜ 太字: <code>**太字**</code>
+            </span>
+            <button onclick="downloadPDF()">PDFをダウンロード</button>
+            <button onclick="saveAsPDF()">印刷（プレビュー）</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- エディタ部分 -->
+        <div class="editor-pane">
+            <textarea id="editor" placeholder="ここに小説の本文を入力してください。&#10;字下げは自動では行いません（必要なら文頭に「　」を入力してください）。&#10;&#10;改行: 段落内改行（プレビューでは改行として反映）&#10;空行: 段落区切り&#10;&#10;ルビの書き方： |漢字《かんじ》&#10;太字の書き方： **強調したい文字**"></textarea>
+        </div>
+
+        <!-- プレビュー部分 -->
+        <div class="preview-pane">
+            <div class="a6-paper" id="preview">
+                <!-- ここに変換されたテキストが入ります -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const editor = document.getElementById('editor');
+        const preview = document.getElementById('preview');
+
+        function escapeHtml(text) {
+            return text
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        // エディタの入力内容をプレビューに反映する関数
+        function updatePreview() {
+            const text = editor.value.replace(/\r\n/g, '\n');
+
+            // 連続する空行を段落区切りとして扱い、段落内の単一改行は <br> にする
+            const lines = text.split('\n');
+            const paragraphs = [];
+            let current = [];
+
+            for (const line of lines) {
+                if (line.trim() === '') {
+                    if (current.length > 0) {
+                        paragraphs.push(current.join('\n'));
+                        current = [];
+                    } else {
+                        paragraphs.push('');
+                    }
+                    continue;
+                }
+                current.push(line);
+            }
+            if (current.length > 0) paragraphs.push(current.join('\n'));
+
+            const html = paragraphs.map(paragraph => {
+                if (paragraph === '') return '<p class="empty-line"><br></p>';
+
+                let processed = escapeHtml(paragraph);
+
+                // 1. ルビのパース: |漢字《かんじ》 -> <ruby>漢字<rt>かんじ</rt></ruby>
+                processed = processed.replace(/\|([^《]+)《([^》]+)》/g, '<ruby>$1<rt>$2</rt></ruby>');
+
+                // 2. 太字のパース: **太字** -> <span class="bold">太字</span>
+                processed = processed.replace(/\*\*([^*]+)\*\*/g, '<span class="bold">$1</span>');
+
+                // 3. 段落内の改行を反映
+                processed = processed.replace(/\n/g, '<br>');
+
+                return `<p>${processed}</p>`;
+            }).join('');
+
+            preview.innerHTML = html;
+        }
+
+        // PDFとして保存（ブラウザの印刷機能を利用）
+        function saveAsPDF() {
+            window.print();
+        }
+
+        async function downloadPDF() {
+            const a6WidthMm = 105;
+            const a6HeightMm = 148;
+            const marginMm = 12;
+
+            // html2canvas は mm 指定が環境でズレやすいので px で固定（96dpi換算）
+            const mmToPx = (mm) => Math.round((mm / 25.4) * 96);
+            const pageWidthPx = mmToPx(a6WidthMm);
+            const pageHeightPx = mmToPx(a6HeightMm);
+            const marginPx = mmToPx(marginMm);
+            const contentWidthPx = pageWidthPx - marginPx * 2;
+            const contentHeightPx = pageHeightPx - marginPx * 2;
+
+            const pageHost = document.createElement('div');
+            pageHost.id = 'pdf-page-host';
+            pageHost.style.position = 'fixed';
+            pageHost.style.left = '-99999px';
+            pageHost.style.top = '0';
+            pageHost.style.width = `${pageWidthPx}px`;
+            pageHost.style.height = `${pageHeightPx}px`;
+            pageHost.style.background = '#fff';
+            pageHost.style.boxSizing = 'border-box';
+            pageHost.style.padding = `${marginPx}px`;
+            pageHost.style.overflow = 'hidden';
+            document.body.appendChild(pageHost);
+
+            const content = document.createElement('div');
+            content.id = 'pdf-page-content';
+            content.style.width = `${contentWidthPx}px`;
+            content.style.height = `${contentHeightPx}px`;
+            content.style.boxSizing = 'border-box';
+
+            // プレビューと同じ見た目に寄せる（A6紙面内での組版）
+            content.style.writingMode = 'vertical-rl';
+            content.style.textOrientation = 'mixed';
+            content.style.fontFamily = `"Yu Mincho", "Noto Serif JP", "Hiragino Mincho ProN", serif`;
+            content.style.fontSize = '11pt';
+            content.style.lineHeight = '1.8';
+            content.style.letterSpacing = '0.05em';
+            content.style.columnWidth = `${contentHeightPx}px`;
+            content.style.columnGap = '0px';
+            content.style.columnFill = 'auto';
+            content.style.wordBreak = 'break-word';
+            pageHost.appendChild(content);
+
+            content.innerHTML = preview.innerHTML;
+
+            // 横方向に溢れているぶんをページ数として扱う
+            const totalWidthPx = content.scrollWidth;
+            const onePageWidthPx = content.clientWidth;
+            const pageCount = Math.max(1, Math.ceil(totalWidthPx / Math.max(1, onePageWidthPx)));
+
+            await ensureJspdf();
+            // eslint-disable-next-line no-undef
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({ unit: 'mm', format: [a6WidthMm, a6HeightMm], orientation: 'portrait' });
+
+            const scale = 2;
+            const hugeCanvas = await ensureHtml2CanvasAndCapture(content, scale);
+
+            // 1回レンダリングした巨大キャンバスを、ページごとに横スライスしてPDFへ貼る
+            const sliceWidth = onePageWidthPx * scale;
+            const sliceHeight = contentHeightPx * scale;
+
+            for (let i = 0; i < pageCount; i++) {
+                const sx = i * sliceWidth;
+                const pageCanvas = document.createElement('canvas');
+                pageCanvas.width = pageWidthPx * scale;
+                pageCanvas.height = pageHeightPx * scale;
+                const ctx = pageCanvas.getContext('2d');
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+
+                // contentの描画部分（本文領域）を余白込みのページキャンバスへ
+                ctx.drawImage(
+                    hugeCanvas,
+                    sx,
+                    0,
+                    sliceWidth,
+                    sliceHeight,
+                    marginPx * scale,
+                    marginPx * scale,
+                    contentWidthPx * scale,
+                    contentHeightPx * scale
+                );
+
+                const imgData = pageCanvas.toDataURL('image/jpeg', 0.92);
+                if (i > 0) pdf.addPage();
+                pdf.addImage(imgData, 'JPEG', 0, 0, a6WidthMm, a6HeightMm);
+            }
+
+            pdf.save('syosetu-a6.pdf');
+            pageHost.remove();
+        }
+
+        function ensureJspdf() {
+            if (window.jspdf && window.jspdf.jsPDF) return Promise.resolve();
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';
+                script.onload = () => resolve();
+                script.onerror = () => reject(new Error('jsPDF の読み込みに失敗しました'));
+                document.head.appendChild(script);
+            });
+        }
+
+        function ensureHtml2Canvas() {
+            if (window.html2canvas) return Promise.resolve();
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+                script.onload = () => resolve();
+                script.onerror = () => reject(new Error('html2canvas の読み込みに失敗しました'));
+                document.head.appendChild(script);
+            });
+        }
+
+        async function ensureHtml2CanvasAndCapture(targetEl, scale) {
+            await ensureHtml2Canvas();
+            // eslint-disable-next-line no-undef
+            return await window.html2canvas(targetEl, {
+                backgroundColor: '#ffffff',
+                scale,
+                useCORS: true,
+                scrollX: 0,
+                scrollY: 0,
+                foreignObjectRendering: true
+            });
+        }
+
+        // 入力するたびにプレビューを更新
+        editor.addEventListener('input', updatePreview);
+
+        // 初期テキストのセットアップ
+        editor.value = "　これは文庫本（A6: 105×148mm）サイズの縦書き小説エディタです。\n\n　ブラウザ上で動作し、入力したテキストがリアルタイムで右側のプレビューに反映されます。長文になると自動的に横へページが追加されていきます。\n\n　字下げは自動では行いません。必要なら段落の先頭に筆者が自力で「　」を入れてください。\n（段落内で改行したい場合はEnter、段落を分けたい場合は空行を入れてください）\n\n　特殊な装飾として、|漢字《ルビ》を振ることや、**太字で強調**することができます。\n\n　右上の「PDFで保存」ボタンを押すと、ブラウザの印刷画面が立ち上がります。「送信先」を「PDFに保存」に設定することで、文庫本サイズのPDFとして書き出すことができます。";
+        updatePreview();
+    </script>
+</body>
+</html>
