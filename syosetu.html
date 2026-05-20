@@ -124,10 +124,21 @@
             display: flex;
             align-items: center;
             gap: 10px;
+            flex-wrap: wrap;
         }
 
         .title-input {
-            width: 100%;
+            flex: 1 1 240px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 8px 10px;
+            color: var(--text-color);
+            font: inherit;
+            outline: none;
+        }
+
+        .author-input {
+            flex: 1 1 180px;
             border: 1px solid var(--border-color);
             border-radius: 6px;
             padding: 8px 10px;
@@ -137,6 +148,7 @@
         }
 
         .title-input:focus,
+        .author-input:focus,
         textarea:focus {
             border-color: #8bb4ef;
             box-shadow: 0 0 0 3px rgba(31, 95, 191, 0.12);
@@ -229,6 +241,30 @@
 
         .page-content p.empty-line {
             min-width: 1em;
+        }
+
+        .cover-layout {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            gap: 8mm;
+            padding: 10mm 0;
+        }
+
+        .cover-title {
+            font-size: 1.6em;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            line-height: 1.4;
+        }
+
+        .cover-author {
+            font-size: 1.05em;
+            letter-spacing: 0.12em;
         }
 
         .page-content ruby {
@@ -350,6 +386,7 @@
         <div class="brand">文庫小説エディタ</div>
         <div class="toolbar-controls">
             <span class="status" id="status">1ページ / 0字</span>
+            <button class="secondary" type="button" id="loadTextButton" title="txtファイルを読み込む">TXT読込</button>
             <button class="secondary" type="button" id="pageBreakButton" title="カーソル位置に改ページを入れる">改ページ</button>
             <button class="secondary" type="button" id="downloadTextButton" title="本文をテキストで保存する">TXT保存</button>
             <button type="button" id="printButton" title="印刷画面からPDFとして保存する">PDF保存</button>
@@ -360,9 +397,12 @@
         <section class="editor-pane">
             <div class="editor-meta">
                 <input class="title-input" id="titleInput" type="text" placeholder="作品タイトル" autocomplete="off">
+                <input class="author-input" id="authorInput" type="text" placeholder="作者名" autocomplete="off">
             </div>
             <textarea id="editor" spellcheck="false" placeholder="ここに本文を書く&#10;&#10;ルビ: |漢字《かんじ》&#10;太字: **文字**&#10;手動改ページ: ［改ページ］"></textarea>
         </section>
+
+        <input id="txtFileInput" type="file" accept=".txt,text/plain" hidden>
 
         <section class="preview-pane" id="previewPane" aria-label="A6 preview">
             <div class="pages" id="pages"></div>
@@ -370,7 +410,7 @@
     </main>
 
     <script>
-        const STORAGE_KEY = 'bunko-novel-editor:v3';
+        const STORAGE_KEY = 'bunko-novel-editor:v4';
         const PAGE_BREAK_PATTERN = /^\s*(?:［改ページ］|\[page\]|={3,}|-{3,})\s*$/i;
         const DEFAULT_TEXT = [
             '　ここから本文を書き始めます。',
@@ -384,11 +424,14 @@
 
         const editor = document.getElementById('editor');
         const titleInput = document.getElementById('titleInput');
+        const authorInput = document.getElementById('authorInput');
         const previewPane = document.getElementById('previewPane');
         const statusText = document.getElementById('status');
+        const loadTextButton = document.getElementById('loadTextButton');
         const pageBreakButton = document.getElementById('pageBreakButton');
         const downloadTextButton = document.getElementById('downloadTextButton');
         const printButton = document.getElementById('printButton');
+        const txtFileInput = document.getElementById('txtFileInput');
 
         let renderTimer = 0;
 
@@ -397,6 +440,7 @@
                 const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
                 if (saved && typeof saved.text === 'string') {
                     titleInput.value = saved.title || '';
+                    authorInput.value = saved.author || '';
                     editor.value = saved.text;
                     return;
                 }
@@ -409,6 +453,7 @@
         function saveState() {
             const payload = {
                 title: titleInput.value,
+                author: authorInput.value,
                 text: editor.value
             };
             localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
@@ -438,6 +483,38 @@
             pagesElement.appendChild(page);
 
             return { page, content };
+        }
+
+        function createCoverPage(pagesElement) {
+            const page = document.createElement('article');
+            page.className = 'page';
+
+            const content = document.createElement('div');
+            content.className = 'page-content';
+
+            const cover = document.createElement('div');
+            cover.className = 'cover-layout';
+
+            const title = document.createElement('div');
+            title.className = 'cover-title';
+            title.textContent = titleInput.value.trim();
+
+            const author = document.createElement('div');
+            author.className = 'cover-author';
+            author.textContent = authorInput.value.trim() ? `著者　${authorInput.value.trim()}` : '';
+
+            if (title.textContent === '' && author.textContent === '') {
+                return null;
+            }
+
+            cover.appendChild(title);
+            if (author.textContent !== '') {
+                cover.appendChild(author);
+            }
+            content.appendChild(cover);
+            page.appendChild(content);
+            pagesElement.appendChild(page);
+            return page;
         }
 
         function overflows(content) {
@@ -592,10 +669,17 @@
             workbench.appendChild(pagesElement);
             document.body.appendChild(workbench);
 
-            let current = createPage(pagesElement);
+            createCoverPage(pagesElement);
+            let current = null;
+
+            function ensurePage() {
+                if (!current) {
+                    current = createPage(pagesElement);
+                }
+            }
 
             function pageIsEmpty() {
-                return current.content.textContent === '' && !current.content.querySelector('br, ruby');
+                return !current || (current.content.textContent === '' && !current.content.querySelector('br, ruby'));
             }
 
             function nextPage() {
@@ -603,6 +687,7 @@
             }
 
             function addBlankLine() {
+                ensurePage();
                 const paragraph = document.createElement('p');
                 paragraph.className = 'empty-line';
                 paragraph.appendChild(document.createElement('br'));
@@ -616,6 +701,7 @@
             }
 
             function addParagraph(textValue) {
+                ensurePage();
                 const tokens = parseInline(textValue);
                 let index = 0;
 
@@ -726,6 +812,23 @@
             URL.revokeObjectURL(anchor.href);
         }
 
+        function loadTextFile() {
+            txtFileInput.value = '';
+            txtFileInput.click();
+        }
+
+        txtFileInput.addEventListener('change', async () => {
+            const file = txtFileInput.files && txtFileInput.files[0];
+            if (!file) {
+                return;
+            }
+
+            const text = await file.text();
+            editor.value = normalizeText(text);
+            saveState();
+            queueRender();
+        });
+
         async function printNovel() {
             saveState();
             if (document.fonts && document.fonts.ready) {
@@ -743,6 +846,8 @@
         });
 
         titleInput.addEventListener('input', saveState);
+        authorInput.addEventListener('input', saveState);
+        loadTextButton.addEventListener('click', loadTextFile);
         pageBreakButton.addEventListener('click', () => insertAtCursor('［改ページ］'));
         downloadTextButton.addEventListener('click', downloadText);
         printButton.addEventListener('click', printNovel);
