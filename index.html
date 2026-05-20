@@ -297,6 +297,25 @@ if ('serviceWorker' in navigator) {
         .cover-layout.align-left { justify-content: flex-end; }
         .cover-layout.align-split { justify-content: space-between; }
 
+        /* Horizontal Writing Mode Override */
+        .cover-layout.wm-h {
+            writing-mode: horizontal-tb;
+            flex-direction: column;
+        }
+
+        /* In horizontal mode, Main-axis is vertical, Cross-axis is horizontal */
+        .cover-layout.wm-h.pos-top { justify-content: flex-start; align-items: center; }
+        .cover-layout.wm-h.pos-center { justify-content: center; align-items: center; }
+        .cover-layout.wm-h.pos-bottom { justify-content: flex-end; align-items: center; }
+        .cover-layout.wm-h.pos-split { justify-content: space-between; align-items: center; }
+
+        .cover-layout.wm-h.align-left { align-items: flex-start; }
+        .cover-layout.wm-h.align-center { align-items: center; }
+        .cover-layout.wm-h.align-right { align-items: flex-end; }
+        .cover-layout.wm-h.align-split { align-items: stretch; }
+        .cover-layout.wm-h.align-split .cover-title { align-self: flex-start; }
+        .cover-layout.wm-h.align-split .cover-author { align-self: flex-end; }
+
         .cover-title.ts-s { font-size: 1.2em; }
         .cover-title.ts-m { font-size: 1.6em; }
         .cover-title.ts-l { font-size: 2.0em; }
@@ -555,6 +574,13 @@ if ('serviceWorker' in navigator) {
                         </select>
                     </div>
                     <div class="settings-group">
+                        <label>方向</label>
+                        <select id="coverWritingMode">
+                            <option value="wm-v">縦書き</option>
+                            <option value="wm-h">横書き</option>
+                        </select>
+                    </div>
+                    <div class="settings-group">
                         <label>題サイズ</label>
                         <select id="titleSize">
                             <option value="ts-s">小</option>
@@ -618,6 +644,7 @@ if ('serviceWorker' in navigator) {
         const titleSizeSelect = document.getElementById('titleSize');
         const authorSizeSelect = document.getElementById('authorSize');
         const authorPrefixInput = document.getElementById('authorPrefix');
+        const coverWritingModeSelect = document.getElementById('coverWritingMode');
 
         let renderTimer = 0;
 
@@ -632,6 +659,7 @@ if ('serviceWorker' in navigator) {
                     if (saved.coverSettings) {
                         coverPosSelect.value = saved.coverSettings.pos || 'pos-center';
                         coverAlignSelect.value = saved.coverSettings.align || 'align-center';
+                        coverWritingModeSelect.value = saved.coverSettings.writingMode || 'wm-v';
                         titleSizeSelect.value = saved.coverSettings.titleSize || 'ts-m';
                         authorSizeSelect.value = saved.coverSettings.authorSize || 'as-m';
                         authorPrefixInput.value = saved.coverSettings.authorPrefix || '';
@@ -653,6 +681,7 @@ if ('serviceWorker' in navigator) {
                 coverSettings: {
                     pos: coverPosSelect.value,
                     align: coverAlignSelect.value,
+                    writingMode: coverWritingModeSelect.value,
                     titleSize: titleSizeSelect.value,
                     authorSize: authorSizeSelect.value,
                     authorPrefix: authorPrefixInput.value
@@ -702,7 +731,7 @@ if ('serviceWorker' in navigator) {
             content.className = 'page-content';
 
             const cover = document.createElement('div');
-            cover.className = `cover-layout ${coverPosSelect.value} ${coverAlignSelect.value}`;
+            cover.className = `cover-layout ${coverWritingModeSelect.value} ${coverPosSelect.value} ${coverAlignSelect.value}`;
 
             const title = document.createElement('div');
             title.className = `cover-title ${titleSizeSelect.value}`;
@@ -1190,7 +1219,7 @@ if ('serviceWorker' in navigator) {
             settingsPanel.classList.toggle('active');
         });
 
-        [coverPosSelect, coverAlignSelect, titleSizeSelect, authorSizeSelect].forEach(el => {
+        [coverPosSelect, coverAlignSelect, coverWritingModeSelect, titleSizeSelect, authorSizeSelect].forEach(el => {
             el.addEventListener('change', () => {
                 saveState();
                 queueRender();
