@@ -3,376 +3,757 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>A6縦書き小説エディタ</title>
+    <title>文庫小説エディタ</title>
     <style>
         :root {
-            --bg-color: #f4f4f5;
-            --paper-color: #fdfdfc;
-            --text-color: #333333;
-            --border-color: #d1d5db;
+            --bg-color: #eef1f4;
+            --panel-color: #ffffff;
+            --paper-color: #fffefa;
+            --text-color: #252525;
+            --muted-color: #667085;
+            --border-color: #d7dce2;
+            --accent-color: #1f5fbf;
+            --accent-hover: #184c99;
+            --page-width: 105mm;
+            --page-height: 148mm;
+            --page-pad-y: 13mm;
+            --page-pad-x: 11mm;
+            --body-font-size: 10pt;
+            --body-line-height: 1.75;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            height: 100%;
         }
 
         body {
-            margin: 0;
-            padding: 0;
-            background-color: var(--bg-color);
-            font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+            background: var(--bg-color);
             color: var(--text-color);
+            font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
             display: flex;
             flex-direction: column;
-            height: 100vh;
+            overflow: hidden;
         }
 
-        /* ツールバー（印刷時は非表示） */
         .toolbar {
-            background-color: #ffffff;
-            padding: 10px 20px;
+            min-height: 58px;
+            padding: 10px 18px;
+            background: var(--panel-color);
             border-bottom: 1px solid var(--border-color);
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            z-index: 10;
+            justify-content: space-between;
+            gap: 16px;
+            box-shadow: 0 2px 10px rgba(31, 41, 55, 0.06);
+            z-index: 5;
         }
 
-        .toolbar h1 {
-            margin: 0;
-            font-size: 1.2rem;
+        .brand {
+            font-size: 1rem;
+            font-weight: 700;
+            white-space: nowrap;
         }
 
         .toolbar-controls {
             display: flex;
-            gap: 15px;
             align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            flex-wrap: wrap;
         }
 
-        .help-text {
-            font-size: 0.85rem;
-            color: #666;
+        .status {
+            color: var(--muted-color);
+            font-size: 0.84rem;
+            margin-right: 6px;
+            white-space: nowrap;
         }
 
         button {
-            background-color: #2563eb;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
+            min-height: 34px;
+            border: 1px solid transparent;
+            border-radius: 6px;
+            padding: 7px 12px;
+            background: var(--accent-color);
+            color: #ffffff;
             cursor: pointer;
             font-size: 0.9rem;
-            font-weight: bold;
-            transition: background-color 0.2s;
+            font-weight: 700;
+            line-height: 1;
         }
 
         button:hover {
-            background-color: #1d4ed8;
+            background: var(--accent-hover);
         }
 
-        button:disabled {
-            background-color: #93c5fd;
-            cursor: not-allowed;
+        button.secondary {
+            background: #ffffff;
+            color: #27364a;
+            border-color: var(--border-color);
         }
 
-        /* メインレイアウト */
+        button.secondary:hover {
+            background: #f5f7fa;
+        }
+
         .container {
-            display: flex;
             flex: 1;
-            overflow: hidden;
+            min-height: 0;
+            display: grid;
+            grid-template-columns: minmax(320px, 0.95fr) minmax(420px, 1.1fr);
         }
 
-        /* 左側：エディタ */
         .editor-pane {
-            flex: 1;
+            min-width: 0;
+            min-height: 0;
             display: flex;
             flex-direction: column;
+            background: var(--panel-color);
             border-right: 1px solid var(--border-color);
-            background: white;
+        }
+
+        .editor-meta {
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .title-input {
+            width: 100%;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 8px 10px;
+            color: var(--text-color);
+            font: inherit;
+            outline: none;
+        }
+
+        .title-input:focus,
+        textarea:focus {
+            border-color: #8bb4ef;
+            box-shadow: 0 0 0 3px rgba(31, 95, 191, 0.12);
         }
 
         textarea {
             flex: 1;
             width: 100%;
+            min-height: 0;
             padding: 20px;
-            border: none;
+            border: 0;
             resize: none;
+            color: var(--text-color);
+            font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
             font-size: 1rem;
-            font-family: inherit;
-            line-height: 1.6;
+            line-height: 1.75;
             outline: none;
-            box-sizing: border-box;
         }
 
-        /* 右側：プレビュー（A6サイズ縦書き） */
         .preview-pane {
-            flex: 1;
-            background-color: var(--bg-color);
-            overflow-x: auto;
-            overflow-y: hidden;
-            padding: 40px;
-            direction: rtl; /* 縦書きのスクロール方向を右からにする */
+            min-width: 0;
+            min-height: 0;
+            padding: 30px;
+            overflow: auto;
+            background:
+                linear-gradient(90deg, rgba(255,255,255,0.48), rgba(255,255,255,0)),
+                var(--bg-color);
+            direction: rtl;
         }
 
-        .a6-paper {
-            /* A6サイズの比率と寸法 (画面上での見栄え用) */
-            height: 148mm;
-            width: fit-content;
-            min-width: 105mm;
-            background-color: var(--paper-color);
-            box-shadow: 0 0 15px rgba(0,0,0,0.1);
-            padding: 12mm 10mm;
-            box-sizing: border-box;
-            
-            /* 縦書き設定 */
+        .pages {
+            display: flex;
+            flex-direction: row;
+            align-items: flex-start;
+            gap: 16mm;
+            width: max-content;
+            min-height: 100%;
+            direction: rtl;
+        }
+
+        .page {
+            position: relative;
+            flex: 0 0 var(--page-width);
+            width: var(--page-width);
+            height: var(--page-height);
+            padding: var(--page-pad-y) var(--page-pad-x);
+            overflow: hidden;
+            background: var(--paper-color);
+            box-shadow: 0 10px 28px rgba(31, 41, 55, 0.17);
+            direction: ltr;
+        }
+
+        .page::after {
+            content: attr(data-page);
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 3.5mm;
+            color: #9aa3af;
+            font-size: 7pt;
+            line-height: 1;
+            text-align: center;
+            writing-mode: horizontal-tb;
+            direction: ltr;
+            pointer-events: none;
+        }
+
+        .page-content {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
             writing-mode: vertical-rl;
             text-orientation: mixed;
-            font-family: "Yu Mincho", "Noto Serif JP", "Hiragino Mincho ProN", serif;
-            font-size: 11pt;
-            line-height: 1.8;
-            letter-spacing: 0.05em;
-            
-            /* テキストが溢れたら横に広がる（複数ページ化） */
-            column-width: 85mm; /* 105mm - 20mm(padding) */
-            column-gap: 20mm;   /* padding-left + padding-right */
-            column-fill: auto;
-
-            /* ページの区切り線を背景で表現 */
-            background-image: repeating-linear-gradient(to left,
-                transparent,
-                transparent 104.5mm,
-                #e5e7eb 104.5mm,
-                #e5e7eb 105mm
-            );
+            color: #1f1f1f;
+            font-family: "Yu Mincho", "Noto Serif JP", "Hiragino Mincho ProN", "BIZ UDPMincho", serif;
+            font-size: var(--body-font-size);
+            line-height: var(--body-line-height);
+            letter-spacing: 0;
+            line-break: strict;
+            overflow-wrap: normal;
+            word-break: normal;
+            -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
         }
 
-        .a6-paper p {
+        .page-content p {
             margin: 0;
             text-indent: 0;
         }
 
-        /* 空行の維持 */
-        .a6-paper p.empty-line {
+        .page-content p.empty-line {
             min-width: 1em;
-            text-indent: 0;
+        }
+
+        .page-content ruby {
+            ruby-align: center;
+        }
+
+        .page-content rt {
+            font-size: 0.48em;
+            line-height: 1;
+            letter-spacing: 0;
         }
 
         .bold {
-            font-weight: bold;
+            font-weight: 700;
         }
 
-        /* 印刷（PDF出力）用の設定 */
+        .pagination-workbench {
+            position: fixed;
+            left: -10000px;
+            top: 0;
+            width: max-content;
+            visibility: hidden;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        @media (max-width: 920px) {
+            body {
+                height: auto;
+                min-height: 100%;
+                overflow: auto;
+            }
+
+            .toolbar {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .container {
+                display: block;
+            }
+
+            .editor-pane {
+                min-height: 48vh;
+                border-right: 0;
+                border-bottom: 1px solid var(--border-color);
+            }
+
+            .preview-pane {
+                min-height: 70vh;
+            }
+        }
+
         @media print {
             @page {
                 size: 105mm 148mm;
                 margin: 0;
             }
+
+            html,
             body {
-                background: white;
-                margin: 0;
-                padding: 0;
+                width: 105mm;
+                min-height: 148mm;
+                background: #ffffff;
+                overflow: visible;
             }
-            .toolbar, .editor-pane {
+
+            .toolbar,
+            .editor-pane {
                 display: none !important;
             }
+
+            .container,
             .preview-pane {
+                display: block;
+                width: 105mm;
+                min-height: 148mm;
                 padding: 0;
                 margin: 0;
-                display: block;
                 overflow: visible;
-                direction: rtl;
-                background: white;
+                background: #ffffff;
+                direction: ltr;
             }
-            .a6-paper {
-                box-shadow: none;
+
+            .pages {
+                display: block;
+                width: 105mm;
+                min-height: 0;
+                gap: 0;
+                direction: ltr;
+            }
+
+            .page {
+                display: block;
+                width: 105mm;
+                height: 148mm;
+                padding: var(--page-pad-y) var(--page-pad-x);
                 margin: 0;
-                background-image: none !important;
+                overflow: hidden;
+                background: #ffffff;
+                box-shadow: none;
+                break-after: page;
+                page-break-after: always;
+            }
+
+            .page:last-child {
+                break-after: auto;
+                page-break-after: auto;
+            }
+
+            .page::after {
+                display: none;
             }
         }
     </style>
 </head>
 <body>
-
-    <div class="toolbar">
-        <h1>A6縦書き小説エディタ</h1>
+    <header class="toolbar">
+        <div class="brand">文庫小説エディタ</div>
         <div class="toolbar-controls">
-            <span class="help-text">
-                ルビ: <code>|漢字《かんじ》</code> ｜ 太字: <code>**太字**</code>
-            </span>
-            <button onclick="downloadPDF()">PDFをダウンロード</button>
-            <button onclick="saveAsPDF()">印刷（プレビュー）</button>
+            <span class="status" id="status">1ページ / 0字</span>
+            <button class="secondary" type="button" id="pageBreakButton" title="カーソル位置に改ページを入れる">改ページ</button>
+            <button class="secondary" type="button" id="downloadTextButton" title="本文をテキストで保存する">TXT保存</button>
+            <button type="button" id="printButton" title="印刷画面からPDFとして保存する">PDF保存</button>
         </div>
-    </div>
+    </header>
 
-    <div class="container">
-        <!-- エディタ部分 -->
-        <div class="editor-pane">
-            <textarea id="editor" placeholder="ここに小説の本文を入力してください。&#10;字下げは自動では行いません（必要なら文頭に「　」を入力してください）。&#10;&#10;改行: 段落内改行（プレビューでは改行として反映）&#10;空行: 段落区切り&#10;&#10;ルビの書き方： |漢字《かんじ》&#10;太字の書き方： **強調したい文字**"></textarea>
-        </div>
-
-        <!-- プレビュー部分 -->
-        <div class="preview-pane">
-            <div class="a6-paper" id="preview">
-                <!-- ここに変換されたテキストが入ります -->
+    <main class="container">
+        <section class="editor-pane">
+            <div class="editor-meta">
+                <input class="title-input" id="titleInput" type="text" placeholder="作品タイトル" autocomplete="off">
             </div>
-        </div>
-    </div>
+            <textarea id="editor" spellcheck="false" placeholder="ここに本文を書く&#10;&#10;ルビ: |漢字《かんじ》&#10;太字: **文字**&#10;手動改ページ: ［改ページ］"></textarea>
+        </section>
+
+        <section class="preview-pane" id="previewPane" aria-label="A6 preview">
+            <div class="pages" id="pages"></div>
+        </section>
+    </main>
 
     <script>
-        const editor = document.getElementById('editor');
-        const preview = document.getElementById('preview');
+        const STORAGE_KEY = 'bunko-novel-editor:v3';
+        const PAGE_BREAK_PATTERN = /^\s*(?:［改ページ］|\[page\]|={3,}|-{3,})\s*$/i;
+        const DEFAULT_TEXT = [
+            '　ここから本文を書き始めます。',
+            '',
+            '　このエディタはA6文庫サイズで縦書きに組み、ページごとに左右の余白を持たせます。',
+            '',
+            '　ルビは|漢字《かんじ》、強調は**太字**で書けます。',
+            '［改ページ］',
+            '　改ページを入れると、次のA6ページに続きます。'
+        ].join('\n');
 
-        function escapeHtml(text) {
-            return text
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#39;');
+        const editor = document.getElementById('editor');
+        const titleInput = document.getElementById('titleInput');
+        const previewPane = document.getElementById('previewPane');
+        const statusText = document.getElementById('status');
+        const pageBreakButton = document.getElementById('pageBreakButton');
+        const downloadTextButton = document.getElementById('downloadTextButton');
+        const printButton = document.getElementById('printButton');
+
+        let renderTimer = 0;
+
+        function loadState() {
+            try {
+                const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+                if (saved && typeof saved.text === 'string') {
+                    titleInput.value = saved.title || '';
+                    editor.value = saved.text;
+                    return;
+                }
+            } catch (error) {
+                console.warn('保存データを読めませんでした。', error);
+            }
+            editor.value = DEFAULT_TEXT;
         }
 
-        function updatePreview() {
-            const text = editor.value.replace(/\r\n/g, '\n');
-            const lines = text.split('\n');
-            const paragraphs = [];
-            let current = [];
+        function saveState() {
+            const payload = {
+                title: titleInput.value,
+                text: editor.value
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+        }
+
+        function normalizeText(text) {
+            return text.replace(/\r\n?/g, '\n');
+        }
+
+        function visibleCharacterCount(text) {
+            return normalizeText(text)
+                .split('\n')
+                .filter(line => !PAGE_BREAK_PATTERN.test(line))
+                .join('')
+                .replace(/\|([^《]+)《([^》]+)》/g, '$1')
+                .replace(/\*\*([^*]+)\*\*/g, '$1')
+                .replace(/\s/g, '').length;
+        }
+
+        function createPage(pagesElement) {
+            const page = document.createElement('article');
+            page.className = 'page';
+
+            const content = document.createElement('div');
+            content.className = 'page-content';
+            page.appendChild(content);
+            pagesElement.appendChild(page);
+
+            return { page, content };
+        }
+
+        function overflows(content) {
+            return content.scrollWidth > content.clientWidth + 1 || content.scrollHeight > content.clientHeight + 1;
+        }
+
+        function createTokenNode(token) {
+            if (token.type === 'br') {
+                return document.createElement('br');
+            }
+
+            if (token.type === 'ruby') {
+                const ruby = document.createElement('ruby');
+                ruby.textContent = token.base;
+                const rt = document.createElement('rt');
+                rt.textContent = token.reading;
+                ruby.appendChild(rt);
+                return ruby;
+            }
+
+            if (token.bold) {
+                const span = document.createElement('span');
+                span.className = 'bold';
+                span.textContent = token.text;
+                return span;
+            }
+
+            return document.createTextNode(token.text);
+        }
+
+        function appendTokenRange(parent, tokens, start, count) {
+            const fragment = document.createDocumentFragment();
+            for (let i = start; i < start + count; i += 1) {
+                fragment.appendChild(createTokenNode(tokens[i]));
+            }
+            parent.appendChild(fragment);
+        }
+
+        function setTokenRange(parent, tokens, start, count) {
+            parent.replaceChildren();
+            appendTokenRange(parent, tokens, start, count);
+        }
+
+        function maxFittingCount(paragraph, content, tokens, start, count) {
+            let low = 0;
+            let high = count;
+            let best = 0;
+
+            while (low <= high) {
+                const mid = Math.floor((low + high) / 2);
+                setTokenRange(paragraph, tokens, start, mid);
+
+                if (overflows(content)) {
+                    high = mid - 1;
+                } else {
+                    best = mid;
+                    low = mid + 1;
+                }
+            }
+
+            paragraph.replaceChildren();
+            return best;
+        }
+
+        function parseInline(text) {
+            const tokens = [];
+            const chars = Array.from(text);
+
+            for (let i = 0; i < chars.length; i += 1) {
+                if (chars[i] === '\n') {
+                    tokens.push({ type: 'br' });
+                    continue;
+                }
+
+                if (chars[i] === '|' && chars[i + 1]) {
+                    const open = chars.indexOf('《', i + 1);
+                    const close = open === -1 ? -1 : chars.indexOf('》', open + 1);
+                    if (open > i + 1 && close > open + 1) {
+                        tokens.push({
+                            type: 'ruby',
+                            base: chars.slice(i + 1, open).join(''),
+                            reading: chars.slice(open + 1, close).join('')
+                        });
+                        i = close;
+                        continue;
+                    }
+                }
+
+                if (chars[i] === '*' && chars[i + 1] === '*') {
+                    const close = chars.findIndex((char, index) => index > i + 1 && char === '*' && chars[index + 1] === '*');
+                    if (close > i + 1) {
+                        for (const char of chars.slice(i + 2, close)) {
+                            tokens.push({ type: 'text', text: char, bold: true });
+                        }
+                        i = close + 1;
+                        continue;
+                    }
+                }
+
+                tokens.push({ type: 'text', text: chars[i] });
+            }
+
+            return tokens;
+        }
+
+        function parseBlocks(text) {
+            const lines = normalizeText(text).split('\n');
+            const blocks = [];
+            let paragraph = [];
+            let skipNextBlank = false;
+
+            function flushParagraph() {
+                if (paragraph.length > 0) {
+                    blocks.push({ type: 'paragraph', text: paragraph.join('\n') });
+                    paragraph = [];
+                }
+            }
 
             for (const line of lines) {
+                if (PAGE_BREAK_PATTERN.test(line)) {
+                    flushParagraph();
+                    blocks.push({ type: 'page-break' });
+                    skipNextBlank = true;
+                    continue;
+                }
+
                 if (line.trim() === '') {
-                    if (current.length > 0) {
-                        paragraphs.push(current.join('\n'));
-                        current = [];
-                    } else {
-                        paragraphs.push('');
+                    if (skipNextBlank) {
+                        skipNextBlank = false;
+                        continue;
+                    }
+                    flushParagraph();
+                    blocks.push({ type: 'blank' });
+                    continue;
+                }
+
+                skipNextBlank = false;
+                paragraph.push(line);
+            }
+
+            flushParagraph();
+            return blocks;
+        }
+
+        function paginate(text) {
+            const workbench = document.createElement('div');
+            workbench.className = 'pagination-workbench';
+
+            const pagesElement = document.createElement('div');
+            pagesElement.className = 'pages';
+            pagesElement.id = 'pages';
+            workbench.appendChild(pagesElement);
+            document.body.appendChild(workbench);
+
+            let current = createPage(pagesElement);
+
+            function pageIsEmpty() {
+                return current.content.textContent === '' && !current.content.querySelector('br, ruby');
+            }
+
+            function nextPage() {
+                current = createPage(pagesElement);
+            }
+
+            function addBlankLine() {
+                const paragraph = document.createElement('p');
+                paragraph.className = 'empty-line';
+                paragraph.appendChild(document.createElement('br'));
+                current.content.appendChild(paragraph);
+
+                if (overflows(current.content)) {
+                    current.content.removeChild(paragraph);
+                    nextPage();
+                    current.content.appendChild(paragraph);
+                }
+            }
+
+            function addParagraph(textValue) {
+                const tokens = parseInline(textValue);
+                let index = 0;
+
+                while (index < tokens.length) {
+                    const paragraph = document.createElement('p');
+                    current.content.appendChild(paragraph);
+
+                    const remaining = tokens.length - index;
+                    appendTokenRange(paragraph, tokens, index, remaining);
+
+                    if (!overflows(current.content)) {
+                        index = tokens.length;
+                        continue;
+                    }
+
+                    paragraph.replaceChildren();
+                    const fitCount = maxFittingCount(paragraph, current.content, tokens, index, remaining);
+
+                    if (fitCount === 0) {
+                        current.content.removeChild(paragraph);
+                        if (pageIsEmpty()) {
+                            current.content.appendChild(paragraph);
+                            appendTokenRange(paragraph, tokens, index, 1);
+                            index += 1;
+                        }
+                        nextPage();
+                        continue;
+                    }
+
+                    appendTokenRange(paragraph, tokens, index, fitCount);
+                    index += fitCount;
+
+                    if (index < tokens.length) {
+                        nextPage();
+                    }
+                }
+            }
+
+            for (const block of parseBlocks(text)) {
+                if (block.type === 'page-break') {
+                    if (!pageIsEmpty()) {
+                        nextPage();
                     }
                     continue;
                 }
-                current.push(line);
-            }
-            if (current.length > 0) paragraphs.push(current.join('\n'));
 
-            const html = paragraphs.map(paragraph => {
-                if (paragraph === '') return '<p class="empty-line"><br></p>';
-                let processed = escapeHtml(paragraph);
-                processed = processed.replace(/\|([^《]+)《([^》]+)》/g, '<ruby>$1<rt>$2</rt></ruby>');
-                processed = processed.replace(/\*\*([^*]+)\*\*/g, '<span class="bold">$1</span>');
-                processed = processed.replace(/\n/g, '<br>');
-                return `<p>${processed}</p>`;
-            }).join('');
-
-            preview.innerHTML = html;
-        }
-
-        function saveAsPDF() {
-            window.print();
-        }
-
-        async function downloadPDF() {
-            const btn = document.querySelector('button[onclick="downloadPDF()"]');
-            const originalText = btn.textContent;
-            btn.disabled = true;
-            btn.textContent = '準備中...';
-
-            try {
-                await ensureJspdf();
-                await ensureHtml2Canvas();
-                const { jsPDF } = window.jspdf;
-
-                const a6WidthMm = 105;
-                const a6HeightMm = 148;
-                
-                const paper = document.getElementById('preview');
-                // ブラウザの計算上の幅を取得（mm換算の精度に依存するが、105mmごとの区切りを基準にする）
-                const totalWidthPx = paper.scrollWidth;
-                
-                // 105mm を px に換算 (96dpi)
-                const mmToPx = (mm) => (mm / 25.4) * 96;
-                const pageWidthPx = mmToPx(105);
-                
-                // ページ数を算出（微小な誤差を許容するため2px引く）
-                const pageCount = Math.max(1, Math.ceil((totalWidthPx - 2) / pageWidthPx));
-
-                const pdf = new jsPDF({
-                    orientation: 'p',
-                    unit: 'mm',
-                    format: 'a6'
-                });
-
-                for (let i = 0; i < pageCount; i++) {
-                    btn.textContent = `生成中 (${i + 1}/${pageCount})...`;
-                    
-                    if (i > 0) pdf.addPage('a6', 'p');
-
-                    const container = document.createElement('div');
-                    container.style.width = '105mm';
-                    container.style.height = '148mm';
-                    container.style.position = 'fixed';
-                    container.style.top = '0';
-                    container.style.left = '-1000mm';
-                    container.style.overflow = 'hidden';
-                    container.style.background = 'white';
-                    container.style.direction = 'rtl';
-                    document.body.appendChild(container);
-
-                    const clone = paper.cloneNode(true);
-                    clone.style.margin = '0';
-                    clone.style.boxShadow = 'none';
-                    clone.style.position = 'absolute';
-                    clone.style.top = '0';
-                    clone.style.right = `-${i * 105}mm`;
-                    clone.style.width = 'fit-content';
-                    clone.style.height = '148mm';
-                    clone.style.background = 'white';
-                    clone.style.backgroundImage = 'none';
-
-                    container.appendChild(clone);
-
-                    const canvas = await window.html2canvas(container, {
-                        scale: 2,
-                        useCORS: true,
-                        logging: false,
-                        backgroundColor: '#ffffff'
-                    });
-
-                    const imgData = canvas.toDataURL('image/jpeg', 0.95);
-                    pdf.addImage(imgData, 'JPEG', 0, 0, 105, 148);
-
-                    document.body.removeChild(container);
+                if (block.type === 'blank') {
+                    addBlankLine();
+                    continue;
                 }
 
-                pdf.save('novel.pdf');
-            } catch (error) {
-                console.error('PDF generation failed:', error);
-                alert('PDFの生成に失敗しました。');
-            } finally {
-                btn.textContent = originalText;
-                btn.disabled = false;
+                addParagraph(block.text);
             }
-        }
 
-        function ensureJspdf() {
-            if (window.jspdf && window.jspdf.jsPDF) return Promise.resolve();
-            return new Promise((resolve, reject) => {
-                const script = document.createElement('script');
-                script.src = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';
-                script.onload = () => resolve();
-                script.onerror = () => reject(new Error('jsPDF の読み込みに失敗しました'));
-                document.head.appendChild(script);
+            const pages = Array.from(pagesElement.children);
+            if (pages.length === 0) {
+                createPage(pagesElement);
+            }
+
+            Array.from(pagesElement.children).forEach((page, index) => {
+                page.dataset.page = String(index + 1);
             });
+
+            workbench.remove();
+            return pagesElement;
         }
 
-        function ensureHtml2Canvas() {
-            if (window.html2canvas) return Promise.resolve();
-            return new Promise((resolve, reject) => {
-                const script = document.createElement('script');
-                script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
-                script.onload = () => resolve();
-                script.onerror = () => reject(new Error('html2canvas の読み込みに失敗しました'));
-                document.head.appendChild(script);
-            });
+        function renderPreview() {
+            const pagesElement = paginate(editor.value);
+            previewPane.replaceChildren(pagesElement);
+
+            const pageCount = pagesElement.children.length;
+            const charCount = visibleCharacterCount(editor.value);
+            statusText.textContent = `${pageCount}ページ / ${charCount.toLocaleString('ja-JP')}字`;
         }
 
-        editor.addEventListener('input', updatePreview);
+        function queueRender() {
+            window.clearTimeout(renderTimer);
+            renderTimer = window.setTimeout(() => {
+                renderPreview();
+            }, 40);
+        }
 
-        editor.value = "　これは文庫本（A6: 105×148mm）サイズの縦書き小説エディタです。\n\n　ブラウザ上で動作し、入力したテキストがリアルタイムで右側のプレビューに反映されます。長文になると自動的に横へページが追加されていきます。\n\n　字下げは自動では行いません。必要なら段落の先頭に筆者が自力で「　」を入れてください。\n（段落内で改行したい場合はEnter、段落を分けたい場合は空行を入れてください）\n\n　特殊な裝飾として、|漢字《ルビ》を振ることや、**太字で強調**することができます。\n\n　右上の「PDFをダウンロード」ボタンを押すと、各ページを画像としてキャプチャし、結合したPDFファイルがダウンロードされます。";
-        updatePreview();
+        function insertAtCursor(value) {
+            const start = editor.selectionStart;
+            const end = editor.selectionEnd;
+            const before = editor.value.slice(0, start);
+            const after = editor.value.slice(end);
+            const prefix = before.endsWith('\n') || before.length === 0 ? '' : '\n';
+            const suffix = after.startsWith('\n') || after.length === 0 ? '' : '\n';
+            const insertion = `${prefix}${value}${suffix}`;
+
+            editor.value = before + insertion + after;
+            const cursor = before.length + insertion.length;
+            editor.focus();
+            editor.setSelectionRange(cursor, cursor);
+            saveState();
+            queueRender();
+        }
+
+        function downloadText() {
+            const title = (titleInput.value.trim() || 'novel').replace(/[\\/:*?"<>|]/g, '_');
+            const blob = new Blob([editor.value], { type: 'text/plain;charset=utf-8' });
+            const anchor = document.createElement('a');
+            anchor.href = URL.createObjectURL(blob);
+            anchor.download = `${title}.txt`;
+            anchor.click();
+            URL.revokeObjectURL(anchor.href);
+        }
+
+        async function printNovel() {
+            saveState();
+            if (document.fonts && document.fonts.ready) {
+                await document.fonts.ready;
+            }
+            renderPreview();
+            const title = titleInput.value.trim();
+            document.title = title ? `${title} - 文庫小説エディタ` : '文庫小説エディタ';
+            requestAnimationFrame(() => window.print());
+        }
+
+        editor.addEventListener('input', () => {
+            saveState();
+            queueRender();
+        });
+
+        titleInput.addEventListener('input', saveState);
+        pageBreakButton.addEventListener('click', () => insertAtCursor('［改ページ］'));
+        downloadTextButton.addEventListener('click', downloadText);
+        printButton.addEventListener('click', printNovel);
+        window.addEventListener('beforeprint', renderPreview);
+
+        loadState();
+        if (document.fonts && document.fonts.ready) {
+            document.fonts.ready.then(renderPreview);
+        } else {
+            renderPreview();
+        }
     </script>
 </body>
 </html>
