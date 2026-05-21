@@ -23,13 +23,14 @@ if ('serviceWorker' in navigator) {
             --accent-color: #1f5fbf;
             --accent-hover: #184c99;
             --page-width: 105mm;
-            --page-height: 148mm;
+            --page-height: 148.5mm;
             --page-pad-y: 13mm;
             --page-pad-x: 11mm;
             --body-font-size: 9px;
             --body-line-height: 1.75;
             --body-font-family: "Yu Mincho", "Noto Serif JP", "Hiragino Mincho ProN", "BIZ UDPMincho", serif;
             --text-orientation: mixed;
+            --preview-scale: 1;
         }
 
         * {
@@ -194,6 +195,14 @@ if ('serviceWorker' in navigator) {
                 linear-gradient(90deg, rgba(255,255,255,0.48), rgba(255,255,255,0)),
                 var(--bg-color);
             direction: rtl;
+        }
+
+        .pages-scaler {
+            display: block;
+            width: max-content;
+            height: max-content;
+            transform: scale(var(--preview-scale));
+            transform-origin: top right;
         }
 
         .pages {
@@ -393,10 +402,6 @@ if ('serviceWorker' in navigator) {
         }
 
         @media (max-width: 920px) {
-            :root {
-                --page-width: calc(100vw - 24px);
-                --page-height: calc((100vw - 24px) * 1.4095238);
-            }
 
             body {
                 height: auto;
@@ -457,34 +462,25 @@ if ('serviceWorker' in navigator) {
             }
 
             .pages {
-                width: max-content;
-                gap: 14px;
                 align-items: center;
-                direction: rtl;
             }
 
             .page {
-                width: var(--page-width);
-                height: var(--page-height);
                 flex-shrink: 0;
                 scroll-snap-align: center;
-            }
-
-            .page::after {
-                bottom: 2.8mm;
             }
         }
 
         @media print {
             @page {
-                size: 105mm 148mm;
+                size: 105mm 148.5mm;
                 margin: 0;
             }
 
             html,
             body {
                 width: 105mm;
-                min-height: 148mm;
+                min-height: 148.5mm;
                 background: #ffffff;
                 overflow: visible;
             }
@@ -494,11 +490,17 @@ if ('serviceWorker' in navigator) {
                 display: none !important;
             }
 
+            .pages-scaler {
+                transform: none !important;
+                width: auto !important;
+                height: auto !important;
+            }
+
             .container,
             .preview-pane {
                 display: block;
                 width: 105mm;
-                min-height: 148mm;
+                min-height: 148.5mm;
                 padding: 0;
                 margin: 0;
                 overflow: visible;
@@ -517,7 +519,7 @@ if ('serviceWorker' in navigator) {
             .page {
                 display: block;
                 width: 105mm;
-                height: 148mm;
+                height: 148.5mm;
                 padding: var(--page-pad-y) var(--page-pad-x);
                 margin: 0;
                 overflow: hidden;
@@ -1216,13 +1218,45 @@ if ('serviceWorker' in navigator) {
             return pagesElement;
         }
 
+        function applyPreviewScale() {
+            const scaler = document.getElementById('pagesScaler');
+            const pages = document.getElementById('pages');
+            if (!scaler || !pages) return;
+
+            const pageEl = pages.querySelector('.page');
+            if (!pageEl) return;
+            
+            const unscaledPageWidth = pageEl.offsetWidth;
+            const isMobile = window.innerWidth <= 920;
+            const containerWidth = previewPane.clientWidth - (isMobile ? 24 : 60);
+
+            if (containerWidth < unscaledPageWidth) {
+                const scale = containerWidth / unscaledPageWidth;
+                document.documentElement.style.setProperty('--preview-scale', scale.toString());
+                scaler.style.width = (pages.offsetWidth * scale) + 'px';
+                scaler.style.height = (pages.offsetHeight * scale) + 'px';
+            } else {
+                document.documentElement.style.setProperty('--preview-scale', '1');
+                scaler.style.width = '';
+                scaler.style.height = '';
+            }
+        }
+
         function renderPreview() {
             const pagesElement = paginate(editor.value);
-            previewPane.replaceChildren(pagesElement);
+            
+            const scaler = document.createElement('div');
+            scaler.id = 'pagesScaler';
+            scaler.className = 'pages-scaler';
+            scaler.appendChild(pagesElement);
+            
+            previewPane.replaceChildren(scaler);
 
             const pageCount = pagesElement.children.length;
             const charCount = visibleCharacterCount(editor.value);
             statusText.textContent = `${pageCount}ページ / ${charCount.toLocaleString('ja-JP')}字`;
+            
+            applyPreviewScale();
         }
 
         function queueRender() {
@@ -1461,6 +1495,7 @@ if ('serviceWorker' in navigator) {
         downloadTextButton.addEventListener('click', downloadText);
         printButton.addEventListener('click', printNovel);
         window.addEventListener('beforeprint', renderPreview);
+        window.addEventListener('resize', applyPreviewScale);
 
         toggleSettingsButton.addEventListener('click', () => {
             settingsPanel.classList.toggle('active');
