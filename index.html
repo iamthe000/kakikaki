@@ -615,7 +615,7 @@ if ('serviceWorker' in navigator) {
 
     <script>
         const STORAGE_KEY = 'bunko-novel-editor:v4';
-        const PAGE_BREAK_PATTERN = /^\s*(?:［改ページ］|\[page\]|={3,}|-{3,})\s*$/i;
+        const PAGE_BREAK_PATTERN = /^\s*(?:［改ページ］|［＃改ページ］|［＃改丁］|\[page\]|={3,}|-{3,})\s*$/i;
         const DEFAULT_TEXT = [
             '　ここから本文を書き始めます。',
             '',
@@ -700,12 +700,18 @@ if ('serviceWorker' in navigator) {
             return text.replace(/\r\n?/g, '\n');
         }
 
+        function isKanji(ch) {
+            return /[一-龠々〆〇ヶ]/.test(ch);
+        }
+
         function visibleCharacterCount(text) {
             return normalizeText(text)
                 .split('\n')
                 .filter(line => !PAGE_BREAK_PATTERN.test(line))
                 .join('')
-                .replace(/\|([^《<>]+)(?:《([^》]+)》|<<([^>]+)>>)/g, '$1')
+                .replace(/[｜|]([^《<>]+)(?:《[^》]+》|<<[^>]+>>)/g, '$1')
+                .replace(/([一-龠々〆〇ヶ]+)《[^》]+》/g, '$1')
+                .replace(/［＃[^］]+］/g, '')
                 .replace(/\*\*(.*?)\*\*/g, '$1')
                 .replace(/\*(.*?)\*/g, '$1')
                 .replace(/\s/g, '').length;
@@ -846,13 +852,14 @@ if ('serviceWorker' in navigator) {
             }
 
             for (let i = 0; i < chars.length; i += 1) {
-                if (chars[i] === '\n') {
+                const char = chars[i];
+                if (char === '\n') {
                     flushText();
                     tokens.push({ type: 'br' });
                     continue;
                 }
 
-                if (chars[i] === '|' && chars[i + 1]) {
+                if ((char === '|' || char === '｜') && chars[i + 1]) {
                     const angleOpen = chars.indexOf('《', i + 1);
                     let chevronOpen = -1;
                     for (let j = i + 1; j < chars.length - 1; j += 1) {
@@ -901,7 +908,38 @@ if ('serviceWorker' in navigator) {
                     }
                 }
 
-                if (chars[i] === '*' && chars[i + 1] === '*') {
+                if (char === '《' && buffer.length > 0) {
+                    let j = buffer.length - 1;
+                    while (j >= 0 && isKanji(buffer[j])) {
+                        j--;
+                    }
+                    if (j < buffer.length - 1) {
+                        const base = buffer.slice(j + 1);
+                        const newBuffer = buffer.slice(0, j + 1);
+                        const close = chars.indexOf('》', i + 1);
+                        if (close !== -1) {
+                            buffer = newBuffer;
+                            flushText();
+                            tokens.push({
+                                type: 'ruby',
+                                base: base.join ? base.join('') : base,
+                                reading: chars.slice(i + 1, close).join('')
+                            });
+                            i = close;
+                            continue;
+                        }
+                    }
+                }
+
+                if (char === '［' && chars[i + 1] === '＃') {
+                    const close = chars.indexOf('］', i + 1);
+                    if (close !== -1) {
+                        i = close;
+                        continue;
+                    }
+                }
+
+                if (char === '*' && chars[i + 1] === '*') {
                     const close = chars.findIndex((char, index) => index > i + 1 && char === '*' && chars[index + 1] === '*');
                     if (close > i + 1) {
                         flushText();
@@ -1116,6 +1154,15 @@ if ('serviceWorker' in navigator) {
             let content = '';
             if (titleStr) content += `タイトル：${titleStr}\n`;
             if (authorStr) content += `著者：${authorStr}\n`;
+            
+            // Cover settings
+            content += `扉上下：${coverPosSelect.value}\n`;
+            content += `扉左右：${coverAlignSelect.value}\n`;
+            content += `扉方向：${coverWritingModeSelect.value}\n`;
+            content += `題サイズ：${titleSizeSelect.value}\n`;
+            content += `名サイズ：${authorSizeSelect.value}\n`;
+            content += `名ラベル：${authorPrefixInput.value.trim()}\n`;
+
             if (titleStr || authorStr) content += '\n';
             content += editor.value;
 
@@ -1139,45 +1186,123 @@ if ('serviceWorker' in navigator) {
                 return;
             }
 
-            const text = normalizeText(await file.text());
+            const buffer = await file.arrayBuffer();
+            let text = new TextDecoder('utf-8').decode(buffer);
+
+            // Replacement character check (U+FFFD) to detect encoding mismatch
+            const replacementCount = (text.match(/\uFFFD/g) || []).length;
+            if (replacementCount > text.length * 0.01) {
+                text = new TextDecoder('shift-jis').decode(buffer);
+            }
+
+            text = normalizeText(text);
             const lines = text.split('\n');
             let bodyStartIndex = 0;
             let foundTitle = '';
             let foundAuthor = '';
+            const foundCoverSettings = {};
 
-            for (let i = 0; i < Math.min(lines.length, 10); i++) {
-                const line = lines[i].trim();
-                const titleMatch = line.match(/^(?:タイトル|作品名)[\:：]\s*(.*)$/);
-                const authorMatch = line.match(/^(?:著者|作者)[\:：]\s*(.*)$/);
+            // Aozora Bunko style: line 1 is Title, line 2 is Author (if no prefix)
+            if (lines.length > 3 && !lines[0].includes('：') && !lines[1].includes('：')) {
+                foundTitle = lines[0].trim();
+                foundAuthor = lines[1].trim();
+                bodyStartIndex = 2;
+            } else {
+                for (let i = 0; i < Math.min(lines.length, 20); i++) {
+                    const line = lines[i].trim();
+                    const titleMatch = line.match(/^(?:タイトル|作品名)[\:：]\s*(.*)$/);
+                    const authorMatch = line.match(/^(?:著者|作者)[\:：]\s*(.*)$/);
+                    
+                    const coverPosMatch = line.match(/^扉上下[\:：]\s*(.*)$/);
+                    const coverAlignMatch = line.match(/^扉左右[\:：]\s*(.*)$/);
+                    const coverWritingModeMatch = line.match(/^扉方向[\:：]\s*(.*)$/);
+                    const titleSizeMatch = line.match(/^題サイズ[\:：]\s*(.*)$/);
+                    const authorSizeMatch = line.match(/^名サイズ[\:：]\s*(.*)$/);
+                    const authorPrefixMatch = line.match(/^名ラベル[\:：]\s*(.*)$/);
 
-                if (titleMatch) {
-                    foundTitle = titleMatch[1];
-                    bodyStartIndex = i + 1;
-                } else if (authorMatch) {
-                    foundAuthor = authorMatch[1];
-                    bodyStartIndex = i + 1;
-                } else if (line === '' && bodyStartIndex > 0) {
-                    bodyStartIndex = i + 1;
-                    break;
-                } else if (line !== '') {
-                    if (bodyStartIndex === 0) {
-                        // Not metadata yet
-                    } else {
+                    if (titleMatch) {
+                        foundTitle = titleMatch[1];
+                        bodyStartIndex = i + 1;
+                    } else if (authorMatch) {
+                        foundAuthor = authorMatch[1];
+                        bodyStartIndex = i + 1;
+                    } else if (coverPosMatch) {
+                        foundCoverSettings.pos = coverPosMatch[1];
+                        bodyStartIndex = i + 1;
+                    } else if (coverAlignMatch) {
+                        foundCoverSettings.align = coverAlignMatch[1];
+                        bodyStartIndex = i + 1;
+                    } else if (coverWritingModeMatch) {
+                        foundCoverSettings.writingMode = coverWritingModeMatch[1];
+                        bodyStartIndex = i + 1;
+                    } else if (titleSizeMatch) {
+                        foundCoverSettings.titleSize = titleSizeMatch[1];
+                        bodyStartIndex = i + 1;
+                    } else if (authorSizeMatch) {
+                        foundCoverSettings.authorSize = authorSizeMatch[1];
+                        bodyStartIndex = i + 1;
+                    } else if (authorPrefixMatch) {
+                        foundCoverSettings.authorPrefix = authorPrefixMatch[1];
+                        bodyStartIndex = i + 1;
+                    } else if (line === '' && bodyStartIndex > 0) {
+                        bodyStartIndex = i + 1;
                         break;
+                    } else if (line !== '') {
+                        if (bodyStartIndex === 0) {
+                            // Not metadata yet
+                        } else {
+                            break;
+                        }
                     }
                 }
             }
 
-            if (foundTitle || foundAuthor) {
-                if (foundTitle) titleInput.value = foundTitle;
-                if (foundAuthor) authorInput.value = foundAuthor;
-                while (bodyStartIndex < lines.length && lines[bodyStartIndex].trim() === '') {
-                    bodyStartIndex++;
+            let contentLines = (foundTitle || foundAuthor) ? lines.slice(bodyStartIndex) : lines;
+
+            // Skip Aozora header boilerplate (delimited by dashed lines)
+            let headerEndIndex = -1;
+            let dashedLineCount = 0;
+            for (let i = 0; i < Math.min(contentLines.length, 20); i++) {
+                if (contentLines[i].startsWith('-------')) {
+                    dashedLineCount++;
+                    if (dashedLineCount === 2) {
+                        headerEndIndex = i;
+                        break;
+                    }
                 }
-                editor.value = lines.slice(bodyStartIndex).join('\n');
-            } else {
-                editor.value = text;
             }
+            if (headerEndIndex !== -1) {
+                contentLines = contentLines.slice(headerEndIndex + 1);
+            }
+
+            // Strip Aozora footer (starts with "底本：")
+            let footerStartIndex = -1;
+            for (let i = contentLines.length - 1; i >= 0; i--) {
+                if (contentLines[i].trim().startsWith('底本：')) {
+                    footerStartIndex = i;
+                    break;
+                }
+            }
+            if (footerStartIndex !== -1) {
+                contentLines = contentLines.slice(0, footerStartIndex);
+            }
+
+            if (foundTitle) titleInput.value = foundTitle;
+            if (foundAuthor) authorInput.value = foundAuthor;
+            if (foundCoverSettings.pos) coverPosSelect.value = foundCoverSettings.pos;
+            if (foundCoverSettings.align) coverAlignSelect.value = foundCoverSettings.align;
+            if (foundCoverSettings.writingMode) coverWritingModeSelect.value = foundCoverSettings.writingMode;
+            if (foundCoverSettings.titleSize) titleSizeSelect.value = foundCoverSettings.titleSize;
+            if (foundCoverSettings.authorSize) authorSizeSelect.value = foundCoverSettings.authorSize;
+            if (foundCoverSettings.authorPrefix !== undefined) authorPrefixInput.value = foundCoverSettings.authorPrefix;
+
+            // Trim empty lines from start/end
+            let start = 0;
+            while (start < contentLines.length && contentLines[start].trim() === '') start++;
+            let end = contentLines.length;
+            while (end > start && contentLines[end - 1].trim() === '') end--;
+
+            editor.value = contentLines.slice(start, end).join('\n');
 
             saveState();
             updateTabTitle();
