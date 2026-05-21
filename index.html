@@ -818,6 +818,14 @@ if ('serviceWorker' in navigator) {
             appendTokenRange(parent, tokens, start, count);
         }
 
+        function setTokenRangeWithPartial(parent, tokens, start, count, partialToken) {
+            parent.replaceChildren();
+            appendTokenRange(parent, tokens, start, count);
+            if (partialToken) {
+                parent.appendChild(createTokenNode(partialToken));
+            }
+        }
+
         function maxFittingCount(paragraph, content, tokens, start, count) {
             let low = 0;
             let high = count;
@@ -835,6 +843,28 @@ if ('serviceWorker' in navigator) {
                 }
             }
 
+            paragraph.replaceChildren();
+            return best;
+        }
+
+        function maxFittingChars(paragraph, content, tokens, start, count, tokenToSplit) {
+            const chars = Array.from(tokenToSplit.text);
+            let low = 1;
+            let high = chars.length;
+            let best = 0;
+
+            while (low <= high) {
+                const mid = Math.floor((low + high) / 2);
+                const partial = { type: 'text', text: chars.slice(0, mid).join('') };
+                setTokenRangeWithPartial(paragraph, tokens, start, count, partial);
+
+                if (overflows(content)) {
+                    high = mid - 1;
+                } else {
+                    best = mid;
+                    low = mid + 1;
+                }
+            }
             paragraph.replaceChildren();
             return best;
         }
@@ -1054,7 +1084,7 @@ if ('serviceWorker' in navigator) {
 
             function addParagraph(textValue) {
                 ensurePage();
-                const tokens = parseInline(textValue);
+                let tokens = parseInline(textValue);
                 let index = 0;
 
                 while (index < tokens.length) {
@@ -1072,23 +1102,51 @@ if ('serviceWorker' in navigator) {
                     paragraph.replaceChildren();
                     const fitCount = maxFittingCount(paragraph, current.content, tokens, index, remaining);
 
-                    if (fitCount === 0) {
-                        current.content.removeChild(paragraph);
-                        if (pageIsEmpty()) {
-                            current.content.appendChild(paragraph);
-                            appendTokenRange(paragraph, tokens, index, 1);
-                            index += 1;
+                    const splitIndex = index + fitCount;
+                    if (splitIndex < tokens.length && tokens[splitIndex].type === 'text') {
+                        const fitChars = maxFittingChars(paragraph, current.content, tokens, index, fitCount, tokens[splitIndex]);
+                        if (fitChars > 0) {
+                            const chars = Array.from(tokens[splitIndex].text);
+                            const head = { type: 'text', text: chars.slice(0, fitChars).join('') };
+                            const tail = { type: 'text', text: chars.slice(fitChars).join('') };
+
+                            setTokenRangeWithPartial(paragraph, tokens, index, fitCount, head);
+                            tokens[splitIndex] = tail;
+                            index = splitIndex;
+                            nextPage();
+                            continue;
                         }
-                        nextPage();
+                    }
+
+                    if (fitCount > 0) {
+                        appendTokenRange(paragraph, tokens, index, fitCount);
+                        index += fitCount;
+                        if (index < tokens.length) {
+                            nextPage();
+                        }
                         continue;
                     }
 
-                    appendTokenRange(paragraph, tokens, index, fitCount);
-                    index += fitCount;
-
-                    if (index < tokens.length) {
-                        nextPage();
+                    current.content.removeChild(paragraph);
+                    if (pageIsEmpty()) {
+                        current.content.appendChild(paragraph);
+                        const token = tokens[index];
+                        if (token.type === 'text') {
+                            const chars = Array.from(token.text);
+                            const head = { type: 'text', text: chars[0] };
+                            const tail = chars.length > 1 ? { type: 'text', text: chars.slice(1).join('') } : null;
+                            paragraph.appendChild(createTokenNode(head));
+                            if (tail) {
+                                tokens[index] = tail;
+                            } else {
+                                index += 1;
+                            }
+                        } else {
+                            appendTokenRange(paragraph, tokens, index, 1);
+                            index += 1;
+                        }
                     }
+                    nextPage();
                 }
             }
 
