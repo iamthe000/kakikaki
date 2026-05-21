@@ -615,7 +615,7 @@ if ('serviceWorker' in navigator) {
 
     <script>
         const STORAGE_KEY = 'bunko-novel-editor:v4';
-        const PAGE_BREAK_PATTERN = /^\s*(?:［改ページ］|［＃改ページ］|［＃改丁］|\[page\]|={3,}|-{3,})\s*$/i;
+        const PAGE_BREAK_PATTERN = /^\s*(?:［改ページ］|［＃改ページ］|［＃改丁］|\[page\]|={3,5}|-{3,5})\s*$/i;
         const DEFAULT_TEXT = [
             '　ここから本文を書き始めます。',
             '',
@@ -971,6 +971,7 @@ if ('serviceWorker' in navigator) {
             const blocks = [];
             let paragraph = [];
             let skipNextBlank = false;
+            const NOTE_ONLY_PATTERN = /^\s*［＃[^］]+］\s*$/;
 
             function flushParagraph() {
                 if (paragraph.length > 0) {
@@ -984,6 +985,11 @@ if ('serviceWorker' in navigator) {
                     flushParagraph();
                     blocks.push({ type: 'page-break' });
                     skipNextBlank = true;
+                    continue;
+                }
+
+                // Skip lines that only contain Aozora notes (that aren't page breaks)
+                if (NOTE_ONLY_PATTERN.test(line)) {
                     continue;
                 }
 
@@ -1202,8 +1208,10 @@ if ('serviceWorker' in navigator) {
             let foundAuthor = '';
             const foundCoverSettings = {};
 
-            // Aozora Bunko style: line 1 is Title, line 2 is Author (if no prefix)
-            if (lines.length > 3 && !lines[0].includes('：') && !lines[1].includes('：')) {
+            const isAozora = text.includes('［＃') || text.includes('｜') || text.includes('《') || text.includes('底本：');
+
+            // Aozora Bunko style: line 1 is Title, line 2 is Author (if no prefix and it looks like Aozora)
+            if (isAozora && lines.length > 3 && !lines[0].includes('：') && !lines[1].includes('：')) {
                 foundTitle = lines[0].trim();
                 foundAuthor = lines[1].trim();
                 bodyStartIndex = 2;
@@ -1259,20 +1267,25 @@ if ('serviceWorker' in navigator) {
 
             let contentLines = (foundTitle || foundAuthor) ? lines.slice(bodyStartIndex) : lines;
 
-            // Skip Aozora header boilerplate (delimited by dashed lines)
-            let headerEndIndex = -1;
-            let dashedLineCount = 0;
-            for (let i = 0; i < Math.min(contentLines.length, 20); i++) {
-                if (contentLines[i].startsWith('-------')) {
-                    dashedLineCount++;
-                    if (dashedLineCount === 2) {
-                        headerEndIndex = i;
+            // Skip Aozora header boilerplate (delimited by dashed lines at the start)
+            if (isAozora) {
+                let headerEndIndex = -1;
+                let dashedLineCount = 0;
+                for (let i = 0; i < Math.min(contentLines.length, 20); i++) {
+                    if (contentLines[i].startsWith('-------')) {
+                        dashedLineCount++;
+                        if (dashedLineCount === 2) {
+                            headerEndIndex = i;
+                            break;
+                        }
+                    } else if (dashedLineCount === 0 && contentLines[i].trim() !== '') {
+                        // If we encounter non-empty content before any dashed line, it might not be a standard boilerplate header
                         break;
                     }
                 }
-            }
-            if (headerEndIndex !== -1) {
-                contentLines = contentLines.slice(headerEndIndex + 1);
+                if (headerEndIndex !== -1) {
+                    contentLines = contentLines.slice(headerEndIndex + 1);
+                }
             }
 
             // Strip Aozora footer (starts with "底本：")
