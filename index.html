@@ -639,6 +639,8 @@ if ('serviceWorker' in navigator) {
             gothic: '"Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif'
         };
         const PAGE_BREAK_PATTERN = /^\s*(?:［改ページ］|［＃改ページ］|［＃改丁］|\[page\]|={3,5}|-{3,5})\s*$/i;
+        const DEFAULT_TITLE = '作品タイトル';
+        const DEFAULT_AUTHOR = '著者名';
         const DEFAULT_TEXT = [
             '　ここから本文を書き始めます。',
             '',
@@ -704,6 +706,8 @@ if ('serviceWorker' in navigator) {
             } catch (error) {
                 console.warn('保存データを読めませんでした。', error);
             }
+            titleInput.value = DEFAULT_TITLE;
+            authorInput.value = DEFAULT_AUTHOR;
             editor.value = DEFAULT_TEXT;
             updateTabTitle();
         }
