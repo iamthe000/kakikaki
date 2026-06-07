@@ -41,12 +41,31 @@ const authorPrefixInput = document.getElementById('authorPrefix');
 const coverWritingModeSelect = document.getElementById('coverWritingMode');
 const bodyFontSelect = document.getElementById('bodyFont');
 const bodyOrientationSelect = document.getElementById('bodyOrientation');
+const printSizeSelect = document.getElementById('printSize');
 
 let renderTimer = 0;
 
 function applyBodySettings() {
     document.documentElement.style.setProperty('--body-font-family', FONT_STACKS[bodyFontSelect.value] || FONT_STACKS.mincho);
     document.documentElement.style.setProperty('--text-orientation', bodyOrientationSelect.value);
+}
+
+function applyPrintSettings() {
+    const is4up = printSizeSelect.value === 'a4-4up';
+    document.body.classList.toggle('mode-a4-4up', is4up);
+
+    let styleTag = document.getElementById('print-size-style');
+    if (!styleTag) {
+        styleTag = document.createElement('style');
+        styleTag.id = 'print-size-style';
+        document.head.appendChild(styleTag);
+    }
+
+    if (is4up) {
+        styleTag.textContent = '@media print { @page { size: 210mm 297mm; } }';
+    } else {
+        styleTag.textContent = '@media print { @page { size: 105mm 148.5mm; } }';
+    }
 }
 
 function loadState() {
@@ -68,8 +87,10 @@ function loadState() {
             if (saved.bodySettings) {
                 bodyFontSelect.value = saved.bodySettings.font || 'mincho';
                 bodyOrientationSelect.value = saved.bodySettings.orientation || 'mixed';
+                printSizeSelect.value = saved.printSize || 'a6';
             }
             applyBodySettings();
+            applyPrintSettings();
             return;
         }
     } catch (error) {
@@ -97,7 +118,8 @@ function saveState() {
         bodySettings: {
             font: bodyFontSelect.value,
             orientation: bodyOrientationSelect.value
-        }
+        },
+        printSize: printSizeSelect.value
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
 }
@@ -596,10 +618,10 @@ function applyPreviewScale() {
     const pages = document.getElementById('pages');
     if (!scaler || !pages) return;
 
-    const pageEl = pages.querySelector('.page');
-    if (!pageEl) return;
+    const firstEl = pages.firstElementChild;
+    if (!firstEl) return;
     
-    const unscaledPageWidth = pageEl.offsetWidth;
+    const unscaledPageWidth = firstEl.offsetWidth;
     const isMobile = window.innerWidth <= 920;
     const containerWidth = previewPane.clientWidth - (isMobile ? 24 : 60);
 
@@ -617,17 +639,47 @@ function applyPreviewScale() {
 
 function renderPreview() {
     const pagesElement = paginate(editor.value);
+    const pages = Array.from(pagesElement.children);
+    const pageCount = pages.length;
+
+    let finalPagesElement = pagesElement;
+
+    if (printSizeSelect.value === 'a4-4up') {
+        const sheetsContainer = document.createElement('div');
+        sheetsContainer.className = 'pages';
+        sheetsContainer.id = 'pages';
+
+        for (let i = 0; i < pages.length; i += 4) {
+            const sheet = document.createElement('div');
+            sheet.className = 'sheet-a4';
+            for (let j = 0; j < 4; j++) {
+                if (pages[i + j]) {
+                    sheet.appendChild(pages[i + j]);
+                } else {
+                    const filler = document.createElement('div');
+                    filler.className = 'page filler';
+                    sheet.appendChild(filler);
+                }
+            }
+            sheetsContainer.appendChild(sheet);
+        }
+        finalPagesElement = sheetsContainer;
+    }
     
     const scaler = document.createElement('div');
     scaler.id = 'pagesScaler';
     scaler.className = 'pages-scaler';
-    scaler.appendChild(pagesElement);
+    scaler.appendChild(finalPagesElement);
     
     previewPane.replaceChildren(scaler);
 
-    const pageCount = pagesElement.children.length;
     const charCount = visibleCharacterCount(editor.value);
-    statusText.textContent = `${pageCount}ページ / ${charCount.toLocaleString('ja-JP')}字`;
+    if (printSizeSelect.value === 'a4-4up') {
+        const sheetCount = Math.ceil(pageCount / 4);
+        statusText.textContent = `${pageCount}ページ (A4: ${sheetCount}枚) / ${charCount.toLocaleString('ja-JP')}字`;
+    } else {
+        statusText.textContent = `${pageCount}ページ / ${charCount.toLocaleString('ja-JP')}字`;
+    }
     
     applyPreviewScale();
 }
@@ -672,6 +724,7 @@ function downloadText() {
     content += `名ラベル：${authorPrefixInput.value.trim()}\n`;
     content += `書体：${bodyFontSelect.value}\n`;
     content += `英数字：${bodyOrientationSelect.value}\n`;
+    content += `面数：${printSizeSelect.value}\n`;
 
     if (titleStr || authorStr) content += '\n';
     content += editor.value;
@@ -733,6 +786,7 @@ txtFileInput.addEventListener('change', async () => {
             const authorPrefixMatch = line.match(/^名ラベル[\:：]\s*(.*)$/);
             const bodyFontMatch = line.match(/^書体[\:：]\s*(.*)$/);
             const bodyOrientationMatch = line.match(/^英数字[\:：]\s*(.*)$/);
+            const printSizeMatch = line.match(/^面数[\:：]\s*(.*)$/);
 
             if (titleMatch) {
                 foundTitle = titleMatch[1];
@@ -763,6 +817,9 @@ txtFileInput.addEventListener('change', async () => {
                 bodyStartIndex = i + 1;
             } else if (bodyOrientationMatch) {
                 foundCoverSettings.bodyOrientation = bodyOrientationMatch[1];
+                bodyStartIndex = i + 1;
+            } else if (printSizeMatch) {
+                foundCoverSettings.printSize = printSizeMatch[1];
                 bodyStartIndex = i + 1;
             } else if (line === '' && bodyStartIndex > 0) {
                 bodyStartIndex = i + 1;
@@ -822,8 +879,10 @@ txtFileInput.addEventListener('change', async () => {
     if (foundCoverSettings.authorPrefix !== undefined) authorPrefixInput.value = foundCoverSettings.authorPrefix;
     if (foundCoverSettings.bodyFont) bodyFontSelect.value = foundCoverSettings.bodyFont;
     if (foundCoverSettings.bodyOrientation) bodyOrientationSelect.value = foundCoverSettings.bodyOrientation;
+    if (foundCoverSettings.printSize) printSizeSelect.value = foundCoverSettings.printSize;
 
     applyBodySettings();
+    applyPrintSettings();
 
     // Trim empty lines from start/end
     let start = 0;
@@ -874,10 +933,11 @@ toggleSettingsButton.addEventListener('click', () => {
     settingsPanel.classList.toggle('active');
 });
 
-[coverPosSelect, coverAlignSelect, coverWritingModeSelect, titleSizeSelect, authorSizeSelect, bodyFontSelect, bodyOrientationSelect].forEach(el => {
+[coverPosSelect, coverAlignSelect, coverWritingModeSelect, titleSizeSelect, authorSizeSelect, bodyFontSelect, bodyOrientationSelect, printSizeSelect].forEach(el => {
     el.addEventListener('change', () => {
         saveState();
         applyBodySettings();
+        applyPrintSettings();
         queueRender();
     });
 });
