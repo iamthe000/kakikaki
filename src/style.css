@@ -212,6 +212,26 @@ textarea {
     direction: ltr;
 }
 
+.sheet-a4 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    width: 210mm;
+    height: 297mm;
+    background: var(--paper-color);
+    box-shadow: 0 10px 28px rgba(31, 41, 55, 0.17);
+    direction: rtl;
+}
+
+.mode-a4-4up .page {
+    box-shadow: none;
+    border: 0.1mm dashed #e0e0e0;
+}
+
+.mode-a4-4up .page.filler {
+    visibility: hidden;
+}
+
 .page::after {
     content: attr(data-page);
     position: absolute;
@@ -521,5 +541,36 @@ textarea {
 
     .page::after {
         display: none;
+    }
+
+    /* A4 4-up print overrides */
+    .mode-a4-4up html,
+    .mode-a4-4up body {
+        width: 210mm;
+    }
+
+    .mode-a4-4up .container,
+    .mode-a4-4up .preview-pane,
+    .mode-a4-4up .pages {
+        width: 210mm;
+    }
+
+    .mode-a4-4up .sheet-a4 {
+        display: grid;
+        break-after: page;
+        page-break-after: always;
+        box-shadow: none;
+    }
+
+    .mode-a4-4up .sheet-a4:last-child {
+        break-after: auto;
+        page-break-after: auto;
+    }
+
+    .mode-a4-4up .page {
+        display: block;
+        break-after: avoid;
+        page-break-after: avoid;
+        border: none;
     }
 }
