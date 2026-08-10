@@ -41,6 +41,7 @@ const authorPrefixInput = document.getElementById('authorPrefix');
 const coverWritingModeSelect = document.getElementById('coverWritingMode');
 const bodyFontSelect = document.getElementById('bodyFont');
 const bodyOrientationSelect = document.getElementById('bodyOrientation');
+const bodyFontSizeSelect = document.getElementById('bodyFontSize');
 const printSizeSelect = document.getElementById('printSize');
 
 let renderTimer = 0;
@@ -48,6 +49,7 @@ let renderTimer = 0;
 function applyBodySettings() {
     document.documentElement.style.setProperty('--body-font-family', FONT_STACKS[bodyFontSelect.value] || FONT_STACKS.mincho);
     document.documentElement.style.setProperty('--text-orientation', bodyOrientationSelect.value);
+    document.documentElement.style.setProperty('--body-font-size', bodyFontSizeSelect.value || '9px');
 }
 
 function applyPrintSettings() {
@@ -87,6 +89,7 @@ function loadState() {
             if (saved.bodySettings) {
                 bodyFontSelect.value = saved.bodySettings.font || 'mincho';
                 bodyOrientationSelect.value = saved.bodySettings.orientation || 'mixed';
+                bodyFontSizeSelect.value = saved.bodySettings.fontSize || '9px';
                 printSizeSelect.value = saved.printSize || 'a6';
             }
             applyBodySettings();
@@ -117,7 +120,8 @@ function saveState() {
         },
         bodySettings: {
             font: bodyFontSelect.value,
-            orientation: bodyOrientationSelect.value
+            orientation: bodyOrientationSelect.value,
+            fontSize: bodyFontSizeSelect.value
         },
         printSize: printSizeSelect.value
     };
@@ -724,6 +728,7 @@ function downloadText() {
     content += `名ラベル：${authorPrefixInput.value.trim()}\n`;
     content += `書体：${bodyFontSelect.value}\n`;
     content += `英数字：${bodyOrientationSelect.value}\n`;
+    content += `文字サイズ：${bodyFontSizeSelect.value}\n`;
     content += `面数：${printSizeSelect.value}\n`;
 
     if (titleStr || authorStr) content += '\n';
@@ -786,6 +791,7 @@ txtFileInput.addEventListener('change', async () => {
             const authorPrefixMatch = line.match(/^名ラベル[\:：]\s*(.*)$/);
             const bodyFontMatch = line.match(/^書体[\:：]\s*(.*)$/);
             const bodyOrientationMatch = line.match(/^英数字[\:：]\s*(.*)$/);
+            const bodyFontSizeMatch = line.match(/^文字サイズ[\:：]\s*(.*)$/);
             const printSizeMatch = line.match(/^面数[\:：]\s*(.*)$/);
 
             if (titleMatch) {
@@ -817,6 +823,9 @@ txtFileInput.addEventListener('change', async () => {
                 bodyStartIndex = i + 1;
             } else if (bodyOrientationMatch) {
                 foundCoverSettings.bodyOrientation = bodyOrientationMatch[1];
+                bodyStartIndex = i + 1;
+            } else if (bodyFontSizeMatch) {
+                foundCoverSettings.bodyFontSize = bodyFontSizeMatch[1];
                 bodyStartIndex = i + 1;
             } else if (printSizeMatch) {
                 foundCoverSettings.printSize = printSizeMatch[1];
@@ -879,6 +888,7 @@ txtFileInput.addEventListener('change', async () => {
     if (foundCoverSettings.authorPrefix !== undefined) authorPrefixInput.value = foundCoverSettings.authorPrefix;
     if (foundCoverSettings.bodyFont) bodyFontSelect.value = foundCoverSettings.bodyFont;
     if (foundCoverSettings.bodyOrientation) bodyOrientationSelect.value = foundCoverSettings.bodyOrientation;
+    if (foundCoverSettings.bodyFontSize) bodyFontSizeSelect.value = foundCoverSettings.bodyFontSize;
     if (foundCoverSettings.printSize) printSizeSelect.value = foundCoverSettings.printSize;
 
     applyBodySettings();
@@ -933,7 +943,7 @@ toggleSettingsButton.addEventListener('click', () => {
     settingsPanel.classList.toggle('active');
 });
 
-[coverPosSelect, coverAlignSelect, coverWritingModeSelect, titleSizeSelect, authorSizeSelect, bodyFontSelect, bodyOrientationSelect, printSizeSelect].forEach(el => {
+[coverPosSelect, coverAlignSelect, coverWritingModeSelect, titleSizeSelect, authorSizeSelect, bodyFontSelect, bodyOrientationSelect, bodyFontSizeSelect, printSizeSelect].forEach(el => {
     el.addEventListener('change', () => {
         saveState();
         applyBodySettings();
