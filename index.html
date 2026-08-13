@@ -1,21 +1,65 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>縦書き文庫小説エディタ - A6同人誌・A4面付印刷用PDF作成ツール</title>
+    <meta name="description" content="ブラウザ上で動く無料の縦書き文庫小説エディタ。A6サイズ文庫本プレビュー、ルビ・太字・改ページ対応、A4面付け（4-up）印刷用PDFや青空文庫形式TXTの書き出しが可能です。同人誌の執筆・編集に最適。">
+    <meta name="keywords" content="小説エディタ,縦書きエディタ,文庫小説,同人誌小説,A6小説,A4面付け,PDF出力,青空文庫,ルビ,執筆ツール">
+    <meta name="author" content="文庫小説エディタ開発チーム">
+    <meta name="robots" content="index, follow">
     <meta name="google-site-verification" content="W22OXmAWmwJU5YIGgJkIdgaQ1C2_cE3TZ_P8LFvKH_k" />
+    <link rel="canonical" href="https://iamthe000.github.io/kakikaki/">
+
+    <!-- Open Graph (OG) Tags -->
+    <meta property="og:title" content="縦書き文庫小説エディタ - A6同人誌・A4面付印刷用PDF作成ツール">
+    <meta property="og:description" content="ブラウザ上で動く無料の縦書き文庫小説エディタ。A6サイズ文庫本プレビュー、ルビ・太字・改ページ対応、A4面付け（4-up）印刷用PDFや青空文庫形式TXTの書き出しが可能です。">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://iamthe000.github.io/kakikaki/">
+    <meta property="og:image" content="https://iamthe000.github.io/kakikaki/icon192x192.png">
+    <meta property="og:site_name" content="文庫小説エディタ">
+    <meta property="og:locale" content="ja_JP">
+
+    <!-- Twitter Card Tags -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="縦書き文庫小説エディタ - A6同人誌・A4面付印刷用PDF作成ツール">
+    <meta name="twitter:description" content="ブラウザ上で動く無料の縦書き文庫小説エディタ。A6サイズ文庫本プレビュー、ルビ・太字・改ページ対応、A4面付け（4-up）印刷用PDFや青空文庫形式TXTの書き出しが可能です。">
+    <meta name="twitter:image" content="https://iamthe000.github.io/kakikaki/icon192x192.png">
+
+    <!-- Structured Data (JSON-LD WebApplication) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "文庫小説エディタ",
+      "url": "https://iamthe000.github.io/kakikaki/",
+      "description": "ブラウザ上で動く、A6サイズ縦書きの文庫小説エディタ。ルビ・太字・改ページに対応し、A4面付印刷用PDFやテキストの書き出しが可能です。",
+      "applicationCategory": "DesignApplication",
+      "operatingSystem": "All",
+      "browserRequirements": "Requires JavaScript. Requires HTML5.",
+      "featureList": [
+        "縦書きのリアルタイムプレビュー",
+        "A6文庫本サイズ（105mm x 148.5mm）に完全対応",
+        "青空文庫形式ルビ（《》）および注記対応",
+        "A4用紙に4ページ配置する面付け（4-up）印刷・PDF保存",
+        "テキストファイル（TXT）の読み込み・保存"
+      ],
+      "creator": {
+        "@type": "Organization",
+        "name": "mininium"
+      }
+    }
+    </script>
     
     <link rel="apple-touch-icon" href="icon192x192.png">
     <link rel="icon" href="icon192x192.png">
     <link rel="manifest" href="manifest.json">
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>文庫小説エディタ</title>
     <link rel="stylesheet" href="src/style.css">
     <script src="src/script.js" defer></script>
 </head>
 <body>
     <header class="toolbar">
-        <div class="brand">文庫小説エディタ</div>
+        <h1 class="brand">文庫小説エディタ</h1>
         <div class="toolbar-controls">
             <span class="status" id="status">1ページ / 0字</span>
             <button class="secondary" type="button" id="loadTextButton" title="txtファイルを読み込む">TXT読込</button>
@@ -27,6 +71,7 @@
 
     <main class="container">
         <section class="editor-pane">
+            <h2 class="sr-only">執筆・エディタエリア</h2>
             <div class="editor-meta">
                 <input class="title-input" id="titleInput" type="text" placeholder="作品タイトル" autocomplete="off">
                 <input class="author-input" id="authorInput" type="text" placeholder="作者名" autocomplete="off">
@@ -119,6 +164,7 @@
         <input id="txtFileInput" type="file" accept=".txt,text/plain" hidden>
 
         <section class="preview-pane" id="previewPane" aria-label="A6 preview">
+            <h2 class="sr-only">縦書きプレビューエリア</h2>
             <div class="pages" id="pages"></div>
         </section>
     </main>
